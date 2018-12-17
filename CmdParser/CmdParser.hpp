@@ -1,5 +1,8 @@
 #pragma once
+#ifndef INCLUDE_CMD_PARSER_HPP
+#define INCLUDE_CMD_PARSER_HPP
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <iomanip>
@@ -71,18 +74,18 @@ namespace cmd {
 					} else { // Not a flag: should have a parameter in the next input.
 						++i;
 						if (i >= argc) {
-							error_logger_ << "CmdArg Error: Unexpected termination, expected parameter.\n";
+							error_logger_ << "CmdParser Error: Unexpected termination, expected parameter.\n";
 							return false;
 						}
 						param = argv[i];
 					}
 					if (auto it = std::find_if(args_.begin(), args_.end(), [cmd](const auto& arg) { return arg->hasWordKey(cmd); }); it != args_.end()) {
 						if (!it->get()->set(param)) {
-							error_logger_ << "CmdArg Error: Unexpected format for argument \"" << cmd << "\" with parameter \"" << param << "\"\n";
+							error_logger_ << "CmdParser Error: Unexpected format for argument \"" << cmd << "\" with parameter \"" << param << "\"\n";
 							success = false;
 						}
 					} else {
-						error_logger_ << "CmdArg Error: Unrecognized command \"" << cmd << "\"\n";
+						error_logger_ << "CmdParser Error: Unrecognized command \"" << cmd << "\"\n";
 						success = false;
 					}
 				} else if (input.size() > 1 && input[0] == s_charArgDelim) { // Char keys.
@@ -94,7 +97,7 @@ namespace cmd {
 							isFlag = true;
 						} else {
 							if (isFlag) {
-								error_logger_ << "CmdArg Error: Unrecognized flag \"" << input[k] << "\"\n";
+								error_logger_ << "CmdParser Error: Unrecognized flag \"" << input[k] << "\"\n";
 								success = false;
 							}
 							break;
@@ -111,26 +114,26 @@ namespace cmd {
 					} else { // Find the parameter in the next input, if it exists.
 						++i;
 						if (i >= argc) {
-							error_logger_ << "CmdArg Error: Unexpected termination, expected parameter.\n";
+							error_logger_ << "CmdParser Error: Unexpected termination, expected parameter.\n";
 							return false;
 						}
 						param = argv[i];
 					}
 
 					if (cmd.size() != 1) {
-						error_logger_ << "CmdArg Error: Command \"" << input << "\" has an unexpected format.\n";
+						error_logger_ << "CmdParser Error: Command \"" << input << "\" has an unexpected format.\n";
 						success = false;
 					} else if (auto it = std::find_if(args_.begin(), args_.end(), [c = cmd.at(0)](const auto& arg) { return arg->hasCharKey(c); }); it != args_.end()) {
 						if (!it->get()->set(param)) {
-							error_logger_ << "CmdArg Error: Unexpected format for argument \"" << cmd << "\" with parameter \"" << param << "\"\n";
+							error_logger_ << "CmdParser Error: Unexpected format for argument \"" << cmd << "\" with parameter \"" << param << "\"\n";
 							success = false;
 						}
 					} else {
-						error_logger_ << "CmdArg Error: Unrecognized command \"" << cmd << "\"\n";
+						error_logger_ << "CmdParser Error: Unrecognized command \"" << cmd << "\"\n";
 						success = false;
 					}
 				} else {
-					error_logger_ << "CmdArg Error: Unrecognized command format \"" << input << "\"\n";
+					error_logger_ << "CmdParser Error: Unrecognized command format \"" << input << "\"\n";
 					success = false;
 				}
 			}
@@ -151,13 +154,13 @@ namespace cmd {
 				}
 
 				if (!arg.description.empty()) {
-					constexpr std::string_view spacer = " ....................";
+					constexpr std::string_view spacer = " ..............................";
 					if (arg.wordKey) {
 						outstream << std::setfill('.') << std::left << std::setw(spacer.size()) << (" " + std::string(s_wordArgDelim) + *arg.wordKey + " ");
 					} else {
 						outstream << spacer;
 					}
-					outstream << " Usage: " << arg.description;
+					outstream << " " << arg.description;
 				} else if (arg.wordKey) {
 					outstream << " " << s_wordArgDelim << *arg.wordKey;
 				}
@@ -290,3 +293,5 @@ namespace cmd {
 		std::ostream&                     error_logger_ = std::cerr;
 	};
 }
+
+#endif // INCLUDE_CMD_PARSER_HPP
