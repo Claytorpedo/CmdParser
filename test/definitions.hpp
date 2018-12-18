@@ -4,7 +4,7 @@
 
 #include "catch.hpp"
 
-#include "../CmdParser/CmdParser.hpp"
+#include "../CmdParser.hpp"
 
 #define ApproxEps(x) Approx(x).margin(0.00001)
 

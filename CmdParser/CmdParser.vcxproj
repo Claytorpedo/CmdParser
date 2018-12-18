@@ -125,7 +125,7 @@
   <ItemGroup>
     <ClInclude Include="..\test\catch.hpp" />
     <ClInclude Include="..\test\definitions.hpp" />
-    <ClInclude Include="CmdParser.hpp" />
+    <ClInclude Include="..\CmdParser.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\test\catch_main.cpp" />
