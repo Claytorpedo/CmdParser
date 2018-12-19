@@ -30,14 +30,15 @@ namespace cmd {
 		CmdParser(std::ostream& errorLogger) : error_logger_(errorLogger) {}
 
 		// Set to the opposite of defaultVal if present.
-		void pushFlag(bool& flagRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string description = "", bool defaultVal = false, bool verifyUnique = true) {
+		void pushFlag(bool& flagRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, bool defaultVal = false, std::string description = "", bool verifyUnique = true) {
 			flagRef = defaultVal;
 			checkValid(charKey, wordKey, verifyUnique);
 			flags_.emplace_back(charKey, wordKey, std::move(description), flagRef, defaultVal);
 		}
 
 		// Bool type where the user needs to specify true or false. 
-		void push(bool& boolRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string description = "", bool verifyUnique = true) {
+		void push(bool& boolRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, bool defaultVal = false, std::string description = "", bool verifyUnique = true) {
+			boolRef = defaultVal;
 			checkValid(charKey, wordKey, verifyUnique);
 			args_.emplace_back(std::make_unique<BoolArg>(charKey, wordKey, std::move(description), boolRef));
 		}
@@ -45,7 +46,8 @@ namespace cmd {
 		// Any non-bool integral or floating-point type.
 		template <class ArithmeticType>
 		typename std::enable_if<std::is_arithmetic_v<ArithmeticType> && !std::is_same_v<ArithmeticType, bool>>::
-		type push(ArithmeticType& argRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string description = "", bool verifyUnique = true) {
+		type push(ArithmeticType& argRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, ArithmeticType defaultVal = 0, std::string description = "", bool verifyUnique = true) {
+			argRef = defaultVal;
 			checkValid(charKey, wordKey, verifyUnique);
 			args_.emplace_back(std::make_unique<NumericArg<ArithmeticType>>(charKey, wordKey, std::move(description), argRef));
 		}
@@ -53,7 +55,8 @@ namespace cmd {
 		// String or string_view.
 		template <class StringType>
 		typename std::enable_if<std::is_same_v<StringType, std::string> || std::is_same_v<StringType, std::string_view>>::
-		type push(StringType& stringRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string description = "", bool verifyUnique = true) {
+		type push(StringType& stringRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string_view defaultVal = "", std::string description = "", bool verifyUnique = true) {
+			stringRef = defaultVal;
 			checkValid(charKey, wordKey, verifyUnique);
 			args_.emplace_back(std::make_unique<StringArg<StringType>>(charKey, wordKey, std::move(description), stringRef));
 		}

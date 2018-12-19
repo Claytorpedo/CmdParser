@@ -17,9 +17,9 @@ SCENARIO("Taking flag arguments.") {
 	bool flagA;
 	bool flagB;
 	bool flagNotC;
-	cmdParser.pushFlag(flagA, 'a', "flagA", "Flag A");
-	cmdParser.pushFlag(flagB, 'b', "flagB", "Flag B");
-	cmdParser.pushFlag(flagNotC, 'c', "flagC", "Flag C", true);
+	cmdParser.pushFlag(flagA, 'a', "flagA", false, "Flag A");
+	cmdParser.pushFlag(flagB, 'b', "flagB", false, "Flag B");
+	cmdParser.pushFlag(flagNotC, 'c', "flagC", true, "Flag not C");
 	GIVEN("Flag A is set.") {
 		const char* const args[] = { "", "-a" };
 		CHECK(cmdParser.parse(2, args));
@@ -97,10 +97,9 @@ SCENARIO("Taking flag arguments.") {
 
 SCENARIO("Taking bool arguments.") {
 	cmd::CmdParser cmdParser;
-	bool boolA{ false };
-	bool boolB{ false };
-	cmdParser.push(boolA, 'a', "boolA", "Flag A");
-	cmdParser.push(boolB, 'b', "acceptB", "Flag B");
+	bool boolA, boolB;
+	cmdParser.push(boolA, 'a', "boolA", false, "Bool A");
+	cmdParser.push(boolB, 'b', "acceptB", false, "Bool B");
 	GIVEN("Bool A is set.") {
 		const char* const args[] = { "", "-a=true" };
 		CHECK(cmdParser.parse(2, args));
@@ -123,21 +122,21 @@ SCENARIO("Taking bool arguments.") {
 
 SCENARIO("Taking arithmetic arguments.") {
 	cmd::CmdParser cmdParser;
-	int32_t intArg{ 0 };
-	uint32_t unsignedIntArg{ 0 };
-	char charArg{ 'a' };
-	float floatArg{ 0 };
-	cmdParser.push(intArg, 'i', "int");
-	cmdParser.push(unsignedIntArg, 'u', "uint");
-	cmdParser.push(charArg, 'c', "char");
-	cmdParser.push(floatArg, 'f', "float");
+	int32_t intArg;
+	uint32_t unsignedIntArg;
+	char charArg;
+	float floatArg;
+	cmdParser.push(intArg, 'i', "int", 0);
+	cmdParser.push(unsignedIntArg, 'u', "uint", 1u);
+	cmdParser.push(charArg, 'c', "char", 'a');
+	cmdParser.push(floatArg, 'f', "float", 1.0f);
 	GIVEN("An integer.") {
 		const char* const args[] = { "", "-i", "-10" };
 		CHECK(cmdParser.parse(3, args));
 		CHECK(intArg == -10);
-		CHECK(unsignedIntArg == 0);
+		CHECK(unsignedIntArg == 1u);
 		CHECK(charArg == 'a');
-		CHECK(floatArg == ApproxEps(0.0f));
+		CHECK(floatArg == ApproxEps(1.0f));
 	}
 	GIVEN("An unsigned integer.") {
 		const char* const args[] = { "", "-u", "4000000000" };
@@ -145,21 +144,21 @@ SCENARIO("Taking arithmetic arguments.") {
 		CHECK(intArg == 0);
 		CHECK(unsignedIntArg == 4'000'000'000);
 		CHECK(charArg == 'a');
-		CHECK(floatArg == ApproxEps(0.0f));
+		CHECK(floatArg == ApproxEps(1.0f));
 	}
 	GIVEN("A char.") {
 		const char* const args[] = { "", "-c", "G" };
 		CHECK(cmdParser.parse(3, args));
 		CHECK(intArg == 0);
-		CHECK(unsignedIntArg == 0);
+		CHECK(unsignedIntArg == 1u);
 		CHECK(charArg == 'G');
-		CHECK(floatArg == ApproxEps(0.0f));
+		CHECK(floatArg == ApproxEps(1.0f));
 	}
 	GIVEN("A float.") {
 		const char* const args[] = { "", "-f", "14.897" };
 		CHECK(cmdParser.parse(3, args));
 		CHECK(intArg == 0);
-		CHECK(unsignedIntArg == 0);
+		CHECK(unsignedIntArg == 1u);
 		CHECK(charArg == 'a');
 		CHECK(floatArg == ApproxEps(14.897));
 	}
@@ -178,13 +177,13 @@ SCENARIO("Taking string arguments") {
 	std::string strArg;
 	std::string_view strViewArg;
 	cmdParser.push(strArg, 's', "str");
-	cmdParser.push(strViewArg, 'v', "view", "this is used as a string view");
+	cmdParser.push(strViewArg, 'v', "view", "default", "this is used as a string view");
 	GIVEN("A string.") {
 		const std::string input = "this is a test string";
 		const char* const args[] = { "", "-s", input.c_str() };
 		CHECK(cmdParser.parse(3, args));
 		CHECK(strArg == input);
-		CHECK(strViewArg.empty());
+		CHECK(strViewArg == "default");
 	}
 	GIVEN("A string view.") {
 		const char* const args[] = { "", "-v=test string view" };
