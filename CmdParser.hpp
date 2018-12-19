@@ -33,14 +33,14 @@ namespace cmd {
 		void pushFlag(bool& flagRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, bool defaultVal = false, std::string description = "", bool verifyUnique = true) {
 			flagRef = defaultVal;
 			checkValid(charKey, wordKey, verifyUnique);
-			flags_.emplace_back(charKey, wordKey, std::move(description), flagRef, defaultVal);
+			flags_.emplace_back(std::move(charKey), std::move(wordKey), defaultVal ? "true" : "false", std::move(description), flagRef, defaultVal);
 		}
 
 		// Bool type where the user needs to specify true or false. 
 		void push(bool& boolRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, bool defaultVal = false, std::string description = "", bool verifyUnique = true) {
 			boolRef = defaultVal;
 			checkValid(charKey, wordKey, verifyUnique);
-			args_.emplace_back(std::make_unique<BoolArg>(charKey, wordKey, std::move(description), boolRef));
+			args_.emplace_back(std::make_unique<BoolArg>(std::move(charKey), std::move(wordKey), defaultVal ? "true" : "false", std::move(description), boolRef));
 		}
 
 		// Any non-bool integral or floating-point type.
@@ -49,7 +49,9 @@ namespace cmd {
 		type push(ArithmeticType& argRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, ArithmeticType defaultVal = 0, std::string description = "", bool verifyUnique = true) {
 			argRef = defaultVal;
 			checkValid(charKey, wordKey, verifyUnique);
-			args_.emplace_back(std::make_unique<NumericArg<ArithmeticType>>(charKey, wordKey, std::move(description), argRef));
+			std::ostringstream stream;
+			stream << defaultVal;
+			args_.emplace_back(std::make_unique<NumericArg<ArithmeticType>>(std::move(charKey), std::move(wordKey), stream.str(), std::move(description), argRef));
 		}
 
 		// String or string_view.
@@ -58,7 +60,12 @@ namespace cmd {
 		type push(StringType& stringRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string_view defaultVal = "", std::string description = "", bool verifyUnique = true) {
 			stringRef = defaultVal;
 			checkValid(charKey, wordKey, verifyUnique);
-			args_.emplace_back(std::make_unique<StringArg<StringType>>(charKey, wordKey, std::move(description), stringRef));
+			std::string defaultValStr;
+			defaultValStr.reserve(defaultVal.size() + 2);
+			defaultValStr = "\"";
+			defaultValStr += defaultVal;
+			defaultValStr += "\"";
+			args_.emplace_back(std::make_unique<StringArg<StringType>>(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(description), stringRef));
 		}
 
 		// Returns false if an error is encountered.
@@ -149,25 +156,20 @@ namespace cmd {
 				outstream << *programDescription << "\n";
 
 			auto printArg = [&outstream](const auto& arg) {
-				outstream << "    "; // Indent the section.
+				outstream << " "; // Indent the section.
 				if (arg.charKey) {
 					outstream << s_charArgDelim << *arg.charKey;
 				} else {
 					outstream << "  ";
 				}
 
-				if (!arg.description.empty()) {
-					constexpr std::string_view spacer = " ..............................";
-					if (arg.wordKey) {
-						outstream << std::setfill('.') << std::left << std::setw(spacer.size()) << (" " + std::string(s_wordArgDelim) + *arg.wordKey + " ");
-					} else {
-						outstream << spacer;
-					}
-					outstream << " " << arg.description;
-				} else if (arg.wordKey) {
-					outstream << " " << s_wordArgDelim << *arg.wordKey;
+				constexpr std::string_view spacer = " .........................";
+				if (arg.wordKey) {
+					outstream << std::setfill('.') << std::left << std::setw(spacer.size()) << (" " + std::string(s_wordArgDelim) + *arg.wordKey + " ");
+				} else {
+					outstream << spacer;
 				}
-				outstream << "\n";
+				outstream << "[default: " << std::setfill(' ') << std::right << std::setw(8) << arg.defaultValStr << "] " << arg.description << "\n";
 			};
 
 			if (!flags_.empty()) {
@@ -230,9 +232,10 @@ namespace cmd {
 		struct Arg {
 			std::optional<char> charKey = std::nullopt;
 			std::optional<std::string> wordKey = std::nullopt;
+			std::string defaultValStr;
 			std::string description;
-			Arg(std::optional<char> charKey, std::optional<std::string> wordKey, std::string&& description)
-				: charKey(std::move(charKey)), wordKey(std::move(wordKey)), description(std::move(description)) {}
+			Arg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& description)
+				: charKey(std::move(charKey)), wordKey(std::move(wordKey)), defaultValStr(std::move(defaultValStr)), description(std::move(description)) {}
 
 			virtual bool set(std::string_view input) = 0;
 			bool hasCharKey(char key)             const { return charKey && *charKey == key; }
@@ -240,8 +243,8 @@ namespace cmd {
 		};
 
 		struct FlagArg : public Arg {
-			FlagArg(std::optional<char> charKey, std::optional<std::string> wordKey, std::string&& desc, bool& arg, bool defaultVal)
-				: Arg(charKey, wordKey, std::move(desc)), flagRef(arg), defaultVal(defaultVal) {}
+			FlagArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, bool& arg, bool defaultVal)
+				: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), flagRef(arg), defaultVal(defaultVal) {}
 			bool set(std::string_view) override {
 				flagRef = !defaultVal;
 				return true;
@@ -251,8 +254,8 @@ namespace cmd {
 		};
 
 		struct BoolArg : public Arg {
-			BoolArg(std::optional<char> charKey, std::optional<std::string> wordKey, std::string&& desc, bool& arg)
-				: Arg(std::move(charKey), std::move(wordKey), std::move(desc)), boolRef(arg) {}
+			BoolArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, bool& arg)
+				: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), boolRef(arg) {}
 			bool set(std::string_view input) override {
 				std::string lower(input);
 				std::transform(lower.begin(), lower.end(), lower.begin(), [](auto c) { return ::isupper(c) ? static_cast<char>(::tolower(c)) : c; });
@@ -270,8 +273,8 @@ namespace cmd {
 
 		template <class ArgType>
 		struct NumericArg : public Arg {
-			NumericArg(std::optional<char> charKey, std::optional<std::string> wordKey, std::string&& desc, ArgType& arg)
-				: Arg(std::move(charKey), std::move(wordKey), std::move(desc)), argRef(arg) {}
+			NumericArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, ArgType& arg)
+				: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), argRef(arg) {}
 			bool set(std::string_view input) override {
 				std::istringstream stream{ std::string(input) };
 				return static_cast<bool>(stream >> argRef);
@@ -281,8 +284,8 @@ namespace cmd {
 
 		template <class ArgType>
 		struct StringArg : public Arg {
-			StringArg(std::optional<char> charKey, std::optional<std::string> wordKey, std::string&& desc, ArgType& arg)
-				: Arg(std::move(charKey), std::move(wordKey), std::move(desc)), stringRef(arg) {}
+			StringArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, ArgType& arg)
+				: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), stringRef(arg) {}
 			bool set(std::string_view input) override {
 				stringRef = input;
 				return true;

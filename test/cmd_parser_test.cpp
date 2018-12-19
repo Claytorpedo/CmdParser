@@ -1,7 +1,8 @@
 #include "definitions.hpp"
 
 SCENARIO("There are no arguments.") {
-	cmd::CmdParser cmdParser;
+	std::ostringstream errorSink;
+	cmd::CmdParser cmdParser(errorSink);
 	GIVEN("There is no input.") {
 		const char* const args[] = { "" };
 		CHECK(cmdParser.parse(1, args));
@@ -13,7 +14,8 @@ SCENARIO("There are no arguments.") {
 }
 
 SCENARIO("Taking flag arguments.") {
-	cmd::CmdParser cmdParser;
+	std::ostringstream errorSink;
+	cmd::CmdParser cmdParser(errorSink);
 	bool flagA;
 	bool flagB;
 	bool flagNotC;
@@ -150,7 +152,7 @@ SCENARIO("Taking arithmetic arguments.") {
 		const char* const args[] = { "", "-c", "G" };
 		CHECK(cmdParser.parse(3, args));
 		CHECK(intArg == 0);
-		CHECK(unsignedIntArg == 1u);
+		CHECK(unsignedIntArg == 1);
 		CHECK(charArg == 'G');
 		CHECK(floatArg == ApproxEps(1.0f));
 	}
@@ -158,7 +160,7 @@ SCENARIO("Taking arithmetic arguments.") {
 		const char* const args[] = { "", "-f", "14.897" };
 		CHECK(cmdParser.parse(3, args));
 		CHECK(intArg == 0);
-		CHECK(unsignedIntArg == 1u);
+		CHECK(unsignedIntArg == 1);
 		CHECK(charArg == 'a');
 		CHECK(floatArg == ApproxEps(14.897));
 	}
@@ -201,11 +203,11 @@ SCENARIO("Taking string arguments") {
 
 SCENARIO("Taking a mixture of argument types.") {
 	cmd::CmdParser cmdParser;
-	bool flag{ false };
-	bool boolArg{ false };
-	int32_t intArg{ 0 };
-	size_t sizeTArg{ 0 };
-	float floatArg{ 0 };
+	bool flag;
+	bool boolArg;
+	int32_t intArg;
+	size_t sizeTArg;
+	float floatArg;
 	std::string_view viewArg;
 	cmdParser.pushFlag(flag, 'f');
 	cmdParser.push(boolArg, std::nullopt, "bool");
