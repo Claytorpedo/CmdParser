@@ -123,19 +123,22 @@ SCENARIO("Taking bool arguments.") {
 }
 
 SCENARIO("Taking arithmetic arguments.") {
-	cmd::CmdParser cmdParser;
+	std::ostringstream errorSink;
+	cmd::CmdParser cmdParser(errorSink);
 	int32_t intArg;
 	uint32_t unsignedIntArg;
 	char charArg;
 	float floatArg;
 	int8_t smallIntArg;
 	uint8_t smallUintArg;
+	int16_t int16;
 	cmdParser.push(intArg, 'i', "int", 0);
 	cmdParser.push(unsignedIntArg, 'u', "uint", 1u);
 	cmdParser.push(charArg, 'c', "char", 'a');
 	cmdParser.push(floatArg, 'f', "float", 1.0f);
 	cmdParser.push(smallIntArg, 's', "small-int");
 	cmdParser.push(smallUintArg, std::nullopt, "small-uint");
+	cmdParser.push(int16, 't');
 	GIVEN("An integer.") {
 		const char* const args[] = { "", "-i", "-10" };
 		CHECK(cmdParser.parse(3, args));
@@ -145,6 +148,7 @@ SCENARIO("Taking arithmetic arguments.") {
 		CHECK(floatArg == ApproxEps(1.0f));
 		CHECK(smallIntArg == 0);
 		CHECK(smallUintArg == 0);
+		CHECK(int16 == 0);
 	}
 	GIVEN("An unsigned integer.") {
 		const char* const args[] = { "", "-u", "4000000000" };
@@ -155,6 +159,7 @@ SCENARIO("Taking arithmetic arguments.") {
 		CHECK(floatArg == ApproxEps(1.0f));
 		CHECK(smallIntArg == 0);
 		CHECK(smallUintArg == 0);
+		CHECK(int16 == 0);
 	}
 	GIVEN("A char.") {
 		const char* const args[] = { "", "-c", "G" };
@@ -165,6 +170,7 @@ SCENARIO("Taking arithmetic arguments.") {
 		CHECK(floatArg == ApproxEps(1.0f));
 		CHECK(smallIntArg == 0);
 		CHECK(smallUintArg == 0);
+		CHECK(int16 == 0);
 	}
 	GIVEN("A float.") {
 		const char* const args[] = { "", "-f", "14.897" };
@@ -175,6 +181,7 @@ SCENARIO("Taking arithmetic arguments.") {
 		CHECK(floatArg == ApproxEps(14.897));
 		CHECK(smallIntArg == 0);
 		CHECK(smallUintArg == 0);
+		CHECK(int16 == 0);
 	}
 	GIVEN("An int8_t.") {
 		const char* const args[] = { "", "-s", "-40" };
@@ -185,6 +192,7 @@ SCENARIO("Taking arithmetic arguments.") {
 		CHECK(floatArg == ApproxEps(1.0f));
 		CHECK(smallIntArg == -40);
 		CHECK(smallUintArg == 0);
+		CHECK(int16 == 0);
 	}
 	GIVEN("A uint8_t.") {
 		const char* const args[] = { "", "--small-uint=1" };
@@ -195,16 +203,36 @@ SCENARIO("Taking arithmetic arguments.") {
 		CHECK(floatArg == ApproxEps(1.0f));
 		CHECK(smallIntArg == 0);
 		CHECK(smallUintArg == 1);
+		CHECK(int16 == 0);
+	}
+	GIVEN("An int16_t.") {
+		const char* const args[] = { "", "-t=-10000" };
+		CHECK(cmdParser.parse(2, args));
+		CHECK(intArg == 0);
+		CHECK(unsignedIntArg == 1);
+		CHECK(charArg == 'a');
+		CHECK(floatArg == ApproxEps(1.0f));
+		CHECK(smallIntArg == 0);
+		CHECK(smallUintArg ==  0);
+		CHECK(int16 == -10000);
 	}
 	GIVEN("All are set separately.") {
-		const char* const args[] = { "", "--int", "88", "--uint=12", "-c=s", "--float=-98.123", "-s=10", "--small-uint", "40" };
-		CHECK(cmdParser.parse(9, args));
+		const char* const args[] = { "", "--int", "88", "--uint=12", "-c=s", "--float=-98.123", "-s=10", "--small-uint", "40", "-t=100" };
+		CHECK(cmdParser.parse(10, args));
 		CHECK(intArg == 88);
 		CHECK(unsignedIntArg == 12);
 		CHECK(charArg == 's');
 		CHECK(floatArg == ApproxEps(-98.123));
 		CHECK(smallIntArg == 10);
 		CHECK(smallUintArg == 40);
+		CHECK(int16 == 100);
+	}
+	GIVEN("A char when we expect an integer.") {
+		const char* const args[] = { "", "--small-int", "a" };
+		THEN("Parsing should fail.") {
+			CHECK_FALSE(cmdParser.parse(3, args));
+			CHECK(smallIntArg == 0);
+		}
 	}
 }
 
