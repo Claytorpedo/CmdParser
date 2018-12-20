@@ -236,6 +236,67 @@ SCENARIO("Taking arithmetic arguments.") {
 	}
 }
 
+SCENARIO("Giving overflow values for integer arguments.") {
+	cmd::CmdParser cmdParser;
+	int32_t intArg;
+	int8_t smallIntArg;
+	uint8_t smallUintArg;
+	int16_t int16;
+	cmdParser.push(intArg, 'i');
+	cmdParser.push(smallIntArg, 's');
+	cmdParser.push(smallUintArg, 'u');
+	cmdParser.push(int16, 't');
+	GIVEN("A value larger than an int32_t can hold.") {
+		const char* const args[] = { "", "-i", "10000000000000" };
+		THEN("The value should default to the max it can hold.") {
+			CHECK(cmdParser.parse(3, args));
+			CHECK(intArg == std::numeric_limits<int32_t>::max());
+		}
+	}
+	GIVEN("A value smaller than an int32_t can hold.") {
+		const char* const args[] = { "", "-i", "-10000000000000" };
+		THEN("The value should default to the min it can hold.") {
+			CHECK(cmdParser.parse(3, args));
+			CHECK(intArg == std::numeric_limits<int32_t>::min());
+		}
+	}
+	GIVEN("A value larger than an int8_t can hold.") {
+		const char* const args[] = { "", "-s", "200" };
+		THEN("The value should default to the max it can hold.") {
+			CHECK(cmdParser.parse(3, args));
+			CHECK(smallIntArg == std::numeric_limits<int8_t>::max());
+		}
+	}
+	GIVEN("A value smaller than an int8_t can hold.") {
+		const char* const args[] = { "", "-s", "-200" };
+		THEN("The value should default to the min it can hold.") {
+			CHECK(cmdParser.parse(3, args));
+			CHECK(smallIntArg == std::numeric_limits<int8_t>::min());
+		}
+	}
+	GIVEN("A value larger than a unt8_t can hold.") {
+		const char* const args[] = { "", "-u", "256" };
+		THEN("The value should default to the max it can hold.") {
+			CHECK(cmdParser.parse(3, args));
+			CHECK(smallUintArg == std::numeric_limits<uint8_t>::max());
+		}
+	}
+	GIVEN("A value larger than an int16_t can hold.") {
+		const char* const args[] = { "", "-t", "33000" };
+		THEN("The value should default to the max it can hold.") {
+			CHECK(cmdParser.parse(3, args));
+			CHECK(int16 == std::numeric_limits<int16_t>::max());
+		}
+	}
+	GIVEN("A value smaller than an int16_t can hold.") {
+		const char* const args[] = { "", "-t", "-33000" };
+		THEN("The value should default to the min it can hold.") {
+			CHECK(cmdParser.parse(3, args));
+			CHECK(int16 == std::numeric_limits<int16_t>::min());
+		}
+	}
+}
+
 SCENARIO("Taking string arguments") {
 	cmd::CmdParser cmdParser;
 	std::string strArg;

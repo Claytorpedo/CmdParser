@@ -277,22 +277,35 @@ namespace cmd {
 				: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), argRef(arg) {}
 			bool set(std::string_view input) override {
 				std::istringstream stream{ std::string(input) };
-				// istringstream will treat all 8-bit types like chars, giving unexpected results with signed and unsigned chars.
-				// In these cases, input into an integer-type and cast the value back.
-				if constexpr(std::is_same_v<ArgType, uint8_t>) {
-					uint32_t in;
-					const bool success = static_cast<bool>(stream >> in);
-					if (success)
-						argRef = static_cast<uint8_t>(in);
-					return success;
-				} else if constexpr(std::is_same_v<ArgType, int8_t>) {
-					int32_t in;
-					const bool success = static_cast<bool>(stream >> in);
-					if (success)
-						argRef = static_cast<int8_t>(in);
-					return success;
-				}
-				else {
+				// In cases were integer arguments would overflow, prefer setting the min/max value instead of failing.
+				// This also covers the edge case for unsigned and signed char types, which istringstream normally treats like chars rather than integers.
+				if constexpr (!std::is_same_v<ArgType, char> && std::is_integral_v<ArgType>) {
+					if constexpr (std::is_unsigned_v<ArgType>) {
+						uint64_t in;
+						const bool success = static_cast<bool>(stream >> in);
+						if (success) {
+							if (in > std::numeric_limits<ArgType>::max()) {
+								argRef = std::numeric_limits<ArgType>::max();
+							} else {
+								argRef = static_cast<ArgType>(in);
+							}
+						}
+						return success;
+					} else {
+						int64_t in;
+						const bool success = static_cast<bool>(stream >> in);
+						if (success) {
+							if (in > std::numeric_limits<ArgType>::max()) {
+								argRef = std::numeric_limits<ArgType>::max();
+							} else if (in < std::numeric_limits<ArgType>::min()) {
+								argRef = std::numeric_limits<ArgType>::min();
+							} else {
+								argRef = static_cast<ArgType>(in);
+							}
+						}
+						return success;
+					}
+				} else { // Floating-point type or regular char.
 					return static_cast<bool>(stream >> argRef);
 				}
 			}
