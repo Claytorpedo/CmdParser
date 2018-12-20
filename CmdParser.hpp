@@ -277,7 +277,24 @@ namespace cmd {
 				: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), argRef(arg) {}
 			bool set(std::string_view input) override {
 				std::istringstream stream{ std::string(input) };
-				return static_cast<bool>(stream >> argRef);
+				// istringstream will treat all 8-bit types like chars, giving unexpected results with signed and unsigned chars.
+				// In these cases, input into an integer-type and cast the value back.
+				if constexpr(std::is_same_v<ArgType, uint8_t>) {
+					uint32_t in;
+					const bool success = static_cast<bool>(stream >> in);
+					if (success)
+						argRef = static_cast<uint8_t>(in);
+					return success;
+				} else if constexpr(std::is_same_v<ArgType, int8_t>) {
+					int32_t in;
+					const bool success = static_cast<bool>(stream >> in);
+					if (success)
+						argRef = static_cast<int8_t>(in);
+					return success;
+				}
+				else {
+					return static_cast<bool>(stream >> argRef);
+				}
 			}
 			ArgType& argRef;
 		};
