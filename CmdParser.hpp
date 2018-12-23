@@ -150,10 +150,10 @@ namespace cmd {
 			return success;
 		}
 
-		void printHelp(std::optional<std::string> programDescription = std::nullopt, std::ostream& outstream = std::cout) {
+		void printHelp(std::string_view programDescription = "", std::ostream& outstream = std::cout) {
 			outstream << "----------------------------------------\n";
-			if (programDescription)
-				outstream << *programDescription << "\n";
+			if (!programDescription.empty())
+				outstream << programDescription << "\n";
 
 			auto printArg = [&outstream](const auto& arg) {
 				outstream << " "; // Indent the section.
