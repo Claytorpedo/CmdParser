@@ -1,4 +1,3 @@
-#pragma once
 #ifndef INCLUDE_TEST_DEFINITIONS_HPP
 #define INCLUDE_TEST_DEFINITIONS_HPP
 
