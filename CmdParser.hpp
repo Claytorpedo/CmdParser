@@ -1,4 +1,3 @@
-#pragma once
 #ifndef INCLUDE_CMD_PARSER_HPP
 #define INCLUDE_CMD_PARSER_HPP
 
@@ -16,6 +15,9 @@
 #include <vector>
 
 namespace cmd {
+
+struct ignore_unknown_args_policy {};
+struct error_on_unknown_arg_policy {};
 
 struct Error {
 	std::string error;
@@ -89,25 +91,28 @@ public:
 	}
 
 	// Returns false if an error is encountered.
-	template <typename ErrorHandler, std::enable_if_t<std::is_same_v<std::invoke_result_t<ErrorHandler, Error>, ErrorResult>, int> = 0>
+	template <typename ErrorHandler, typename UnknownArgPolicy = ignore_unknown_args_policy, std::enable_if_t<std::is_same_v<std::invoke_result_t<ErrorHandler, Error>, ErrorResult>, int> = 0>
 	bool parse(int argc, const char* const argv[], ErrorHandler errorHandler) {
 		using namespace std::literals;
+		constexpr bool ReportUnknownArgs = std::is_same_v<UnknownArgPolicy, error_on_unknown_arg_policy>;
 
 		invoke_name_ = argv[0];
 		bool success = true;
 		for (int i = 1; i < argc; ++i) {
 			const std::string_view input = argv[i];
 			if (input.size() > s_wordArgDelim.size() && input.substr(0, s_wordArgDelim.size()) == s_wordArgDelim) { // Word keys.
-				std::string_view cmd, param;
+				std::string_view cmd;
+				std::string_view param;
 				if (auto optParam = splitCmd(input.substr(s_wordArgDelim.size()), cmd)) {
 					param = *optParam;
-				} else if (auto it = std::find_if(flags_.begin(), flags_.end(), [cmd](const auto& flag) { return flag.hasWordKey(cmd); }); it != flags_.end()) { // No param found: might be flag.
+				} else if (auto it = std::find_if(flags_.begin(), flags_.end(), [cmd](const auto& flag) { return flag.hasWordKey(cmd); }); it != flags_.end()) {
+					// It's a flag.
 					it->set(std::string_view{});
 					continue;
 				} else { // Not a flag: should have a parameter in the next input.
 					++i;
 					if (i >= argc) {
-						errorHandler(Error{"Unexpected termination, expected parameter."s});
+						errorHandler(Detail::MakeError("Unexpected termination. Expected parameter for command \""sv, input, "\"."sv));
 						return false;
 					}
 					param = argv[i];
@@ -119,9 +124,11 @@ public:
 						success = false;
 					}
 				} else {
-					if (errorHandler(Detail::MakeError("Unrecognized command \""sv, cmd, "\"."sv)) == ErrorResult::Terminate)
-						return false;
-					success = false;
+					if constexpr (ReportUnknownArgs) {
+						if (errorHandler(Detail::MakeError("Unrecognized command \""sv, cmd, "\"."sv)) == ErrorResult::Terminate)
+							return false;
+						success = false;
+					}
 				}
 			} else if (input.size() > 1 && input[0] == s_charArgDelim) { // Char keys.
 				// Look for flags first. There may be multiple chained together.
@@ -131,10 +138,12 @@ public:
 						it->set(std::string_view{});
 						isFlag = true;
 					} else {
-						if (isFlag) {
-							if (errorHandler(Detail::MakeError("Unrecognized flag \""sv, std::string_view{&input[k], 1}, "\"."sv)) == ErrorResult::Terminate)
-								return false;
-							success = false;
+						if constexpr (ReportUnknownArgs) {
+							if (isFlag) {
+								if (errorHandler(Detail::MakeError("Unrecognized flag \""sv, std::string_view{&input[k], 1}, "\"."sv)) == ErrorResult::Terminate)
+									return false;
+								success = false;
+							}
 						}
 						break;
 					}
@@ -143,14 +152,15 @@ public:
 					continue;
 
 				// If it wasn't a flag, then it should be a single character command with a parameter.
-				std::string_view cmd, param;
+				std::string_view cmd;
+				std::string_view param;
 				// Get the command, and see if the parameter is attached to it.
 				if (auto optParam = splitCmd(input.substr(1), cmd)) {
 					param = *optParam;
 				} else { // Find the parameter in the next input, if it exists.
 					++i;
 					if (i >= argc) {
-						errorHandler(Error{"Unexpected termination, expected parameter."s});
+						errorHandler(Detail::MakeError("Unexpected termination. Expected parameter for command \""sv, input, "\"."sv));
 						return false;
 					}
 					param = argv[i];
@@ -167,9 +177,11 @@ public:
 						success = false;
 					}
 				} else {
-					if (errorHandler(Detail::MakeError("Unrecognized command \""sv, cmd, "\"."sv)) == ErrorResult::Terminate)
-						return false;
-					success = false;
+					if constexpr (ReportUnknownArgs) {
+						if (errorHandler(Detail::MakeError("Unrecognized command \""sv, cmd, "\"."sv)) == ErrorResult::Terminate)
+							return false;
+						success = false;
+					}
 				}
 			} else {
 				if (errorHandler(Detail::MakeError("Unrecognized command format \""sv, input, "\"."sv)) == ErrorResult::Terminate)
