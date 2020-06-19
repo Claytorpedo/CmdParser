@@ -76,7 +76,7 @@ public:
 		args_.emplace_back(std::make_unique<NumericArg<ArithmeticType>>(std::move(charKey), std::move(wordKey), stream.str(), std::move(description), argRef));
 	}
 
-	// String or string_view.
+	// std::string or std::string_view.
 	template <class StringType>
 	typename std::enable_if<std::is_same_v<StringType, std::string> || std::is_same_v<StringType, std::string_view>>::
 		type push(StringType& stringRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string_view defaultVal = "", std::string description = "", bool verifyUnique = true) {
@@ -290,6 +290,7 @@ private:
 	struct FlagArg : public Arg {
 		FlagArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, bool& arg, bool defaultVal)
 			: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), flagRef(arg), defaultVal(defaultVal) {}
+
 		bool set(std::string_view) override {
 			flagRef = !defaultVal;
 			return true;
@@ -301,6 +302,7 @@ private:
 	struct BoolArg : public Arg {
 		BoolArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, bool& arg)
 			: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), boolRef(arg) {}
+
 		bool set(std::string_view input) override {
 			std::string lower(input);
 			std::transform(lower.begin(), lower.end(), lower.begin(), [](auto c) { return ::isupper(c) ? static_cast<char>(::tolower(c)) : c; });
@@ -320,13 +322,14 @@ private:
 	struct NumericArg : public Arg {
 		NumericArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, ArgType& arg)
 			: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), argRef(arg) {}
+
 		bool set(std::string_view input) override {
 			std::istringstream stream{std::string(input)};
 			// In cases where integer arguments would overflow, prefer setting the min/max value instead of failing.
 			// This also covers the edge case for unsigned and signed char types, which istringstream normally treats like chars rather than integers.
 			if constexpr (!std::is_same_v<ArgType, char> && std::is_integral_v<ArgType>) {
 				if constexpr (std::is_unsigned_v<ArgType>) {
-					uint64_t in;
+					std::uint64_t in;
 					const bool success = static_cast<bool>(stream >> in);
 					if (success) {
 						if (in > std::numeric_limits<ArgType>::max()) {
@@ -337,7 +340,7 @@ private:
 					}
 					return success;
 				} else {
-					int64_t in;
+					std::int64_t in;
 					const bool success = static_cast<bool>(stream >> in);
 					if (success) {
 						if (in > std::numeric_limits<ArgType>::max()) {
@@ -361,6 +364,7 @@ private:
 	struct StringArg : public Arg {
 		StringArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, ArgType& arg)
 			: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), stringRef(arg) {}
+
 		bool set(std::string_view input) override {
 			stringRef = input;
 			return true;
