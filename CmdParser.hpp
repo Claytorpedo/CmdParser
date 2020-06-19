@@ -41,13 +41,13 @@ auto MakeError(Args&&... args) {
 
 class CmdParser {
 public:
-	static constexpr char             s_charArgDelim = '-';
-	static constexpr std::string_view s_wordArgDelim = "--";
+	static constexpr char             CharArgDelim = '-';
+	static constexpr std::string_view WordArgDelim = "--";
 
-	static constexpr char             s_paramDelim = '=';
+	static constexpr char ParamDelim = '=';
 
-	static constexpr std::array<std::string_view, 5> s_trueStrings = {"true", "t", "yes", "y", "1"};
-	static constexpr std::array<std::string_view, 5> s_falseStrings = {"false", "f", "no", "n", "0"};
+	static constexpr std::array<std::string_view, 5> TrueStrings = {"true", "t", "yes", "y", "1"};
+	static constexpr std::array<std::string_view, 5> FalseStrings = {"false", "f", "no", "n", "0"};
 public:
 	CmdParser() = default;
 
@@ -103,10 +103,10 @@ public:
 		bool success = true;
 		for (int i = 1; i < argc; ++i) {
 			const std::string_view input = argv[i];
-			if (input.size() > s_wordArgDelim.size() && input.substr(0, s_wordArgDelim.size()) == s_wordArgDelim) { // Word keys.
+			if (input.size() > WordArgDelim.size() && input.substr(0, WordArgDelim.size()) == WordArgDelim) { // Word keys.
 				std::string_view cmd;
 				std::string_view param;
-				if (auto optParam = splitCmd(input.substr(s_wordArgDelim.size()), cmd)) {
+				if (auto optParam = splitCmd(input.substr(WordArgDelim.size()), cmd)) {
 					param = *optParam;
 				} else if (auto it = std::find_if(flags_.begin(), flags_.end(), [cmd](const auto& flag) { return flag.hasWordKey(cmd); }); it != flags_.end()) {
 					// It's a flag.
@@ -133,7 +133,7 @@ public:
 						success = false;
 					}
 				}
-			} else if (input.size() > 1 && input[0] == s_charArgDelim) { // Char keys.
+			} else if (input.size() > 1 && input[0] == CharArgDelim) { // Char keys.
 				// Look for flags first. There may be multiple chained together.
 				bool isFlag = false;
 				for (size_t k = 1; k < input.size(); ++k) {
@@ -203,14 +203,14 @@ public:
 		auto printArg = [&outstream](const auto& arg) {
 			outstream << " "; // Indent the section.
 			if (arg.charKey) {
-				outstream << s_charArgDelim << *arg.charKey;
+				outstream << CharArgDelim << *arg.charKey;
 			} else {
 				outstream << "  ";
 			}
 
 			constexpr std::string_view spacer = " .........................";
 			if (arg.wordKey) {
-				outstream << std::setfill('.') << std::left << std::setw(spacer.size()) << (" " + std::string(s_wordArgDelim) + *arg.wordKey + " ");
+				outstream << std::setfill('.') << std::left << std::setw(spacer.size()) << (" " + std::string(WordArgDelim) + *arg.wordKey + " ");
 			} else {
 				outstream << spacer;
 			}
@@ -239,7 +239,7 @@ public:
 private:
 	// Returns an attached parameter if found.
 	static constexpr std::optional<std::string_view> splitCmd(std::string_view input, std::string_view& out_cmd) {
-		const auto splitPos = input.find(s_paramDelim);
+		const auto splitPos = input.find(ParamDelim);
 		out_cmd = input.substr(0, splitPos);
 		if (splitPos >= input.size() + 1)
 			return std::nullopt;
@@ -269,7 +269,7 @@ private:
 	void checkValid(std::optional<char> charKey, std::optional<std::string> wordKey, bool verifyUnique) {
 		assert(charKey || wordKey); // At least one should be set.
 		if (wordKey)
-			assert(!wordKey->empty() && wordKey->at(0) != s_charArgDelim);
+			assert(!wordKey->empty() && wordKey->at(0) != CharArgDelim);
 		if (verifyUnique)
 			checkUnique(charKey, wordKey);
 	}
@@ -306,9 +306,9 @@ private:
 		bool set(std::string_view input) override {
 			std::string lower(input);
 			std::transform(lower.begin(), lower.end(), lower.begin(), [](auto c) { return ::isupper(c) ? static_cast<char>(::tolower(c)) : c; });
-			if (std::find_if(s_trueStrings.cbegin(), s_trueStrings.cend(), [&lower](std::string_view o) { return lower == o; }) != s_trueStrings.cend()) {
+			if (std::find_if(TrueStrings.cbegin(), TrueStrings.cend(), [&lower](std::string_view o) { return lower == o; }) != TrueStrings.cend()) {
 				boolRef = true;
-			} else if (std::find_if(s_falseStrings.cbegin(), s_falseStrings.cend(), [&lower](std::string_view o) { return lower == o; }) != s_falseStrings.cend()) {
+			} else if (std::find_if(FalseStrings.cbegin(), FalseStrings.cend(), [&lower](std::string_view o) { return lower == o; }) != FalseStrings.cend()) {
 				boolRef = false;
 			} else {
 				return false;
