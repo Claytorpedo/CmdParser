@@ -319,7 +319,7 @@ private:
 			: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), argRef(arg) {}
 		bool set(std::string_view input) override {
 			std::istringstream stream{std::string(input)};
-			// In cases were integer arguments would overflow, prefer setting the min/max value instead of failing.
+			// In cases where integer arguments would overflow, prefer setting the min/max value instead of failing.
 			// This also covers the edge case for unsigned and signed char types, which istringstream normally treats like chars rather than integers.
 			if constexpr (!std::is_same_v<ArgType, char> && std::is_integral_v<ArgType>) {
 				if constexpr (std::is_unsigned_v<ArgType>) {
