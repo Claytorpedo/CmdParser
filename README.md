@@ -13,7 +13,7 @@ The first parameter is your variable, the second is a one-character key, to be u
 
 So you can add options like:
 ```c++
-int myIntegerOption{ 0 };
+int myIntegerOption = 0;
 cmdParser.push(myIntegerOption, 'o', "my-option", "My description.");
 ```
 Which could be set with any of:
@@ -38,11 +38,12 @@ Input for these is case-insensitive.
 ```c++
 #include "CmdParser.hpp"
 
-struct MyOptions { // Make a bundle of options to pass around.
-    bool enableSpeedyMode{ true };
-    bool userConsent{ false };
-    int numberOfCakes{ 0 };
-    float cakeFraction{ 13.4f };
+// Make a bundle of options to pass around.
+struct MyOptions {
+    bool enableSpeedyMode = true;
+    bool userConsent = false;
+    int numberOfCakes = 0;
+    float cakeFraction = 13.4f;
     std::string_view cakeName;
 };
 
