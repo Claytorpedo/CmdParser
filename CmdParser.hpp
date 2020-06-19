@@ -91,12 +91,15 @@ public:
 	}
 
 	// Returns false if an error is encountered.
-	template <typename ErrorHandler, typename UnknownArgPolicy = ignore_unknown_args_policy, std::enable_if_t<std::is_same_v<std::invoke_result_t<ErrorHandler, Error>, ErrorResult>, int> = 0>
+	template <typename ErrorHandler,
+	          typename UnknownArgPolicy = ignore_unknown_args_policy,
+	          std::enable_if_t<std::is_same_v<std::invoke_result_t<ErrorHandler, Error>, ErrorResult>, int> = 0>
 	bool parse(int argc, const char* const argv[], ErrorHandler errorHandler) {
 		using namespace std::literals;
 		constexpr bool ReportUnknownArgs = std::is_same_v<UnknownArgPolicy, error_on_unknown_arg_policy>;
 
 		invoke_name_ = argv[0];
+
 		bool success = true;
 		for (int i = 1; i < argc; ++i) {
 			const std::string_view input = argv[i];
