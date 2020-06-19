@@ -24,6 +24,13 @@ int main(int argc, const char* argv[]) {
 	}
 
 	// Use options here.
+	std::cout << "\nresults:\n";
+	std::cout << "options.enableSpeedyMode: " << (options.enableSpeedyMode ? "true" : "false") << "\n";
+	std::cout << "options.userConsent:      " << (options.userConsent ? "true" : "false") << "\n";
+	std::cout << "options.numberOfCakes:    " << options.numberOfCakes << "\n";
+	std::cout << "options.cakeFraction:     " << options.cakeFraction << "\n";
+	std::cout << "options.cakeName:         " << options.cakeName << "\n";
+	std::cout << "\n";
 
 	return 0;
 }
