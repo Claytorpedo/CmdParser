@@ -173,7 +173,7 @@ public:
 					if (errorHandler(Detail::MakeError("Command \""sv, input, "\" has an unexpected format."sv)) == ErrorResult::Terminate)
 						return false;
 					success = false;
-				} else if (auto it = std::find_if(args_.begin(), args_.end(), [c = cmd.at(0)](const auto& arg) { return arg->hasCharKey(c); }); it != args_.end()) {
+				} else if (auto it = std::find_if(args_.begin(), args_.end(), [c = cmd[0]](const auto& arg) { return arg->hasCharKey(c); }); it != args_.end()) {
 					if (!it->get()->set(param)) {
 						if (errorHandler(Detail::MakeError("Unexpected format for argument \""sv, cmd, "\" with parameter \""sv, param, "\".")) == ErrorResult::Terminate)
 							return false;
