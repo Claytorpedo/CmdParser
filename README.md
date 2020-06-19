@@ -52,10 +52,11 @@ int main(int argc, const char* argv[]) {
     cmdParser.pushFlag(options.enableSpeedyMode, 's', "enable-speedy-mode", false, "This is a flag.");
     cmdParser.push(options.userConsent, std::nullopt, "consent", true, "Whether you consent.");
     cmdParser.push(options.numberOfCakes, 'n', "num-cakes", 0, "The number of cakes.");
-    cmdParser.push(options.cakeFraction, 'f', std::nullopt, 1.0f "The fraction of cakes.");
+    cmdParser.push(options.cakeFraction, 'f', std::nullopt, 1.0f, "The fraction of cakes.");
     cmdParser.push(options.cakeName, std::nullopt, "cake-name", "Cakeman", "Name your cake.");
 
-    if (!cmdParser.parse(argc, argv)) { // If we get something we don't expect, print help.
+    if (!cmdParser.parse(argc, argv, [](auto error) { std::cout << "Error parsing: " << error.message() << "\n"; return cmd::ErrorResult::Continue; })) {
+        // If we get something we don't expect, print help.
         cmdParser.printHelp("My test program: Demonstrates example usage.");
         return 1;
     }
