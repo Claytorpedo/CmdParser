@@ -56,12 +56,12 @@ int main(int argc, const char* argv[]) {
     cmdParser.push(options.cakeFraction, 'f', std::nullopt, 1.0f, "The fraction of cakes.");
     cmdParser.push(options.cakeName, std::nullopt, "cake-name", "Cakeman", "Name your cake.");
 
-    if (!cmdParser.parse(argc, argv, [](auto error) { std::cout << "Error parsing: " << error.message() << "\n"; return cmd::ErrorResult::Continue; })) {
+    if (!cmdParser.parse(argc, argv, [](auto error) { std::cout << "Error parsing: " << error.message() << "\n"; })) {
         // If we get something we don't expect, print help.
         cmdParser.printHelp("My test program: Demonstrates example usage.");
         return 1;
     }
-    
+
     // Use options here.
 
     return 0;
