@@ -4,12 +4,15 @@ namespace {
 auto ErrorSink(cmd::Error) { return cmd::ErrorResult::Continue; }
 }
 
-
 SCENARIO("There are no arguments.") {
 	cmd::CmdParser cmdParser;
 	GIVEN("There is no input.") {
 		const char* const args[] = { "" };
 		CHECK(cmdParser.parse(1, args, ErrorSink));
+	}
+	GIVEN("There is no input with a void-returning error handler.") {
+		const char* const args[] = {""};
+		CHECK(cmdParser.parse(1, args, [](auto) {}));
 	}
 	GIVEN("There is unexpected input.") {
 		const char* const args[] = { "", "-a" };

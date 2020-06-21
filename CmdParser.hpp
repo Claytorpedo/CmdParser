@@ -93,14 +93,27 @@ public:
 	// Returns false if an error is encountered.
 	template <typename ErrorHandler,
 	          typename UnknownArgPolicy = ignore_unknown_args_policy,
-	          std::enable_if_t<std::is_same_v<std::invoke_result_t<ErrorHandler, Error>, ErrorResult>, int> = 0>
+	          std::enable_if_t<std::is_invocable_v<ErrorHandler, Error>, int> = 0>
 	bool parse(int argc, const char* const argv[], ErrorHandler errorHandler) {
 		using namespace std::literals;
 		constexpr bool ReportUnknownArgs = std::is_same_v<UnknownArgPolicy, error_on_unknown_arg_policy>;
+		static_assert(std::is_invocable_r_v<void, ErrorHandler, Error> || std::is_invocable_r_v<ErrorResult, ErrorHandler, Error>);
 
 		invoke_name_ = argv[0];
-
 		bool success = true;
+
+		// Returns true if parsing should continue.
+		const auto reportErrorAndContinue = [&success, &errorHandler] (auto&&... args) {
+			success = false;
+			auto error = Detail::MakeError(std::forward<decltype(args)>(args)...);
+			if constexpr (std::is_invocable_r_v<void, ErrorHandler, Error>) {
+				errorHandler(std::move(error));
+				return true; // Continue by default.
+			} else {
+				return errorHandler(std::move(error)) == ErrorResult::Continue;
+			}
+		};
+
 		for (int i = 1; i < argc; ++i) {
 			const std::string_view input = argv[i];
 			if (input.size() > WordArgDelim.size() && input.substr(0, WordArgDelim.size()) == WordArgDelim) { // Word keys.
@@ -115,22 +128,18 @@ public:
 				} else { // Not a flag: should have a parameter in the next input.
 					++i;
 					if (i >= argc) {
-						errorHandler(Detail::MakeError("Unexpected termination. Expected parameter for command \""sv, input, "\"."sv));
+						reportErrorAndContinue("Unexpected termination. Expected parameter for command \""sv, input, "\"."sv);
 						return false;
 					}
 					param = argv[i];
 				}
 				if (auto it = std::find_if(args_.begin(), args_.end(), [cmd](const auto& arg) { return arg->hasWordKey(cmd); }); it != args_.end()) {
-					if (!it->get()->set(param)) {
-						if (errorHandler(Detail::MakeError("Unexpected format for argument \""sv, cmd, "\" with parameter \""sv, param, "\"."sv)) == ErrorResult::Terminate)
-							return false;
-						success = false;
-					}
+					if (!it->get()->set(param) && !reportErrorAndContinue("Unexpected format for argument \""sv, cmd, "\" with parameter \""sv, param, "\"."sv))
+						return false;
 				} else {
 					if constexpr (ReportUnknownArgs) {
-						if (errorHandler(Detail::MakeError("Unrecognized command \""sv, cmd, "\"."sv)) == ErrorResult::Terminate)
+						if (!reportErrorAndContinue("Unrecognized command \""sv, cmd, "\"."sv))
 							return false;
-						success = false;
 					}
 				}
 			} else if (input.size() > 1 && input[0] == CharArgDelim) { // Char keys.
@@ -142,11 +151,8 @@ public:
 						isFlag = true;
 					} else {
 						if constexpr (ReportUnknownArgs) {
-							if (isFlag) {
-								if (errorHandler(Detail::MakeError("Unrecognized flag \""sv, std::string_view{&input[k], 1}, "\"."sv)) == ErrorResult::Terminate)
-									return false;
-								success = false;
-							}
+							if (isFlag && !reportErrorAndContinue("Unrecognized flag \""sv, std::string_view{&input[k], 1}, "\"."sv))
+								return false;
 						}
 						break;
 					}
@@ -163,33 +169,28 @@ public:
 				} else { // Find the parameter in the next input, if it exists.
 					++i;
 					if (i >= argc) {
-						errorHandler(Detail::MakeError("Unexpected termination. Expected parameter for command \""sv, input, "\"."sv));
+						reportErrorAndContinue("Unexpected termination. Expected parameter for command \""sv, input, "\"."sv);
 						return false;
 					}
 					param = argv[i];
 				}
 
 				if (cmd.size() != 1) {
-					if (errorHandler(Detail::MakeError("Command \""sv, input, "\" has an unexpected format."sv)) == ErrorResult::Terminate)
+					if (!reportErrorAndContinue("Command \""sv, input, "\" has an unexpected format."sv))
 						return false;
-					success = false;
 				} else if (auto it = std::find_if(args_.begin(), args_.end(), [c = cmd[0]](const auto& arg) { return arg->hasCharKey(c); }); it != args_.end()) {
 					if (!it->get()->set(param)) {
-						if (errorHandler(Detail::MakeError("Unexpected format for argument \""sv, cmd, "\" with parameter \""sv, param, "\".")) == ErrorResult::Terminate)
+						if (!reportErrorAndContinue("Unexpected format for argument \""sv, cmd, "\" with parameter \""sv, param, "\"."))
 							return false;
-						success = false;
 					}
 				} else {
 					if constexpr (ReportUnknownArgs) {
-						if (errorHandler(Detail::MakeError("Unrecognized command \""sv, cmd, "\"."sv)) == ErrorResult::Terminate)
+						if (!reportErrorAndContinue("Unrecognized command \""sv, cmd, "\"."sv))
 							return false;
-						success = false;
 					}
 				}
-			} else {
-				if (errorHandler(Detail::MakeError("Unrecognized command format \""sv, input, "\"."sv)) == ErrorResult::Terminate)
-					return false;
-				success = false;
+			} else if (!reportErrorAndContinue("Unrecognized command format \""sv, input, "\"."sv)) {
+				return false;
 			}
 		}
 		return success;
