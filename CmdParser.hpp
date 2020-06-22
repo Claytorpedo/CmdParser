@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <charconv>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -324,38 +325,50 @@ private:
 		NumericArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, ArgType& arg)
 			: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), argRef(arg) {}
 
-		bool set(std::string_view input) override {
-			std::istringstream stream{std::string(input)};
+		bool set(const std::string_view input) override {
 			// In cases where integer arguments would overflow, prefer setting the min/max value instead of failing.
-			// This also covers the edge case for unsigned and signed char types, which istringstream normally treats like chars rather than integers.
 			if constexpr (!std::is_same_v<ArgType, char> && std::is_integral_v<ArgType>) {
 				if constexpr (std::is_unsigned_v<ArgType>) {
-					std::uint64_t in;
-					const bool success = static_cast<bool>(stream >> in);
-					if (success) {
-						if (in > std::numeric_limits<ArgType>::max()) {
+					std::uint64_t val = 0;
+					const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val);
+					if (errc == std::errc{}) {
+						if (val > std::numeric_limits<ArgType>::max()) {
 							argRef = std::numeric_limits<ArgType>::max();
 						} else {
-							argRef = static_cast<ArgType>(in);
+							argRef = static_cast<ArgType>(val);
 						}
+						return true;
 					}
-					return success;
+					return false;
 				} else {
-					std::int64_t in;
-					const bool success = static_cast<bool>(stream >> in);
-					if (success) {
-						if (in > std::numeric_limits<ArgType>::max()) {
+					std::int64_t val = 0;
+					const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val);
+					if (errc == std::errc{}) {
+						if (val > std::numeric_limits<ArgType>::max()) {
 							argRef = std::numeric_limits<ArgType>::max();
-						} else if (in < std::numeric_limits<ArgType>::min()) {
+						} else if (val < std::numeric_limits<ArgType>::min()) {
 							argRef = std::numeric_limits<ArgType>::min();
 						} else {
-							argRef = static_cast<ArgType>(in);
+							argRef = static_cast<ArgType>(val);
 						}
+						return true;
 					}
-					return success;
+					return false;
 				}
-			} else { // Floating-point type or regular char.
-				return static_cast<bool>(stream >> argRef);
+			} else if constexpr (std::is_floating_point_v<ArgType>) {
+				ArgType val = 0;
+				const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val);
+				if (errc == std::errc{}) {
+					argRef = val;
+					return true;
+				}
+				return false;
+			}
+			else if constexpr (std::is_same_v<ArgType, char>) {
+				if (input.size() != 1)
+					return false;
+				argRef = input[0];
+				return true;
 			}
 		}
 		ArgType& argRef;
