@@ -325,12 +325,25 @@ private:
 		NumericArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, ArgType& arg)
 			: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), argRef(arg) {}
 
-		bool set(const std::string_view input) override {
+		bool set(std::string_view input) override {
+			const auto insensitiveComp = [](char lhs, char rhs) {
+				return lhs == rhs || std::tolower(static_cast<unsigned char>(lhs)) == std::tolower(static_cast<unsigned char>(rhs));
+			};
+			constexpr std::string_view hex = "0x";
+			constexpr std::string_view negHex = "-0x";
+
 			// In cases where integer arguments would overflow, prefer setting the min/max value instead of failing.
 			if constexpr (!std::is_same_v<ArgType, char> && std::is_integral_v<ArgType>) {
 				if constexpr (std::is_unsigned_v<ArgType>) {
+
+					int base = 10;
+					if (input.size() > 2 && std::equal(hex.begin(), hex.end(), input.begin(), insensitiveComp)) {
+						input.remove_prefix(hex.size());
+						base = 16;
+					}
+
 					std::uint64_t val = 0;
-					const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val);
+					const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val, base);
 					if (errc == std::errc{}) {
 						if (val > std::numeric_limits<ArgType>::max()) {
 							argRef = std::numeric_limits<ArgType>::max();
@@ -338,11 +351,34 @@ private:
 							argRef = static_cast<ArgType>(val);
 						}
 						return true;
+					} else if (errc == std::errc::invalid_argument) {
+						// report
+					} else if (errc == std::errc::result_out_of_range) {
+						// report
 					}
 					return false;
 				} else {
+
+					int base = 10;
+					constexpr std::size_t bufferSize = 64;
+					char buffer[bufferSize];
+					if (input.size() > 2) {
+						if (std::equal(hex.begin(), hex.end(), input.begin(), insensitiveComp)) {
+							input.remove_prefix(hex.size());
+							base = 16;
+						} else if (std::equal(negHex.begin(), negHex.end(), input.begin(), insensitiveComp)) {
+							// We still need the minus sign. Use the buffer.
+							buffer[0] = '-';
+							const auto begin = std::next(input.begin(), 3);
+							const auto end = std::next(begin, std::min(input.size() - 3, bufferSize - 2));
+							std::copy(begin, end, buffer + 1);
+							input = {buffer, std::min(input.size() - 2, bufferSize)};
+							base = 16;
+						}
+					}
+
 					std::int64_t val = 0;
-					const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val);
+					const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val, base);
 					if (errc == std::errc{}) {
 						if (val > std::numeric_limits<ArgType>::max()) {
 							argRef = std::numeric_limits<ArgType>::max();
@@ -352,6 +388,10 @@ private:
 							argRef = static_cast<ArgType>(val);
 						}
 						return true;
+					} else if (errc == std::errc::invalid_argument) {
+						// report
+					} else if (errc == std::errc::result_out_of_range) {
+						// report
 					}
 					return false;
 				}

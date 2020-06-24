@@ -150,7 +150,7 @@ SCENARIO("Taking arithmetic arguments.") {
 		CHECK(intArg == -10);
 		CHECK(unsignedIntArg == 1);
 		CHECK(charArg == 'a');
-		CHECK(floatArg == ApproxEps(1.0f));
+		CHECK(floatArg == 1.0f);
 		CHECK(smallIntArg == 0);
 		CHECK(smallUintArg == 0);
 		CHECK(int16 == 0);
@@ -161,7 +161,7 @@ SCENARIO("Taking arithmetic arguments.") {
 		CHECK(intArg == 0);
 		CHECK(unsignedIntArg == 4'000'000'000);
 		CHECK(charArg == 'a');
-		CHECK(floatArg == ApproxEps(1.0f));
+		CHECK(floatArg == 1.0f);
 		CHECK(smallIntArg == 0);
 		CHECK(smallUintArg == 0);
 		CHECK(int16 == 0);
@@ -172,7 +172,7 @@ SCENARIO("Taking arithmetic arguments.") {
 		CHECK(intArg == 0);
 		CHECK(unsignedIntArg == 1);
 		CHECK(charArg == 'G');
-		CHECK(floatArg == ApproxEps(1.0f));
+		CHECK(floatArg == 1.0f);
 		CHECK(smallIntArg == 0);
 		CHECK(smallUintArg == 0);
 		CHECK(int16 == 0);
@@ -194,7 +194,7 @@ SCENARIO("Taking arithmetic arguments.") {
 		CHECK(intArg == 0);
 		CHECK(unsignedIntArg == 1);
 		CHECK(charArg == 'a');
-		CHECK(floatArg == ApproxEps(1.0f));
+		CHECK(floatArg == 1.0f);
 		CHECK(smallIntArg == -40);
 		CHECK(smallUintArg == 0);
 		CHECK(int16 == 0);
@@ -205,7 +205,7 @@ SCENARIO("Taking arithmetic arguments.") {
 		CHECK(intArg == 0);
 		CHECK(unsignedIntArg == 1);
 		CHECK(charArg == 'a');
-		CHECK(floatArg == ApproxEps(1.0f));
+		CHECK(floatArg == 1.0f);
 		CHECK(smallIntArg == 0);
 		CHECK(smallUintArg == 1);
 		CHECK(int16 == 0);
@@ -216,7 +216,7 @@ SCENARIO("Taking arithmetic arguments.") {
 		CHECK(intArg == 0);
 		CHECK(unsignedIntArg == 1);
 		CHECK(charArg == 'a');
-		CHECK(floatArg == ApproxEps(1.0f));
+		CHECK(floatArg == 1.0f);
 		CHECK(smallIntArg == 0);
 		CHECK(smallUintArg ==  0);
 		CHECK(int16 == -10000);
@@ -231,6 +231,17 @@ SCENARIO("Taking arithmetic arguments.") {
 		CHECK(smallIntArg == 10);
 		CHECK(smallUintArg == 40);
 		CHECK(int16 == 100);
+	}
+	GIVEN("Integers in hex format.") {
+		const char* const args[] = {"", "-i", "-0xA0", "--uint=0x0F", "--small-int", "0x10", "--small-uint", "0xFF", "-t", "0x8000"};
+		CHECK(cmdParser.parse(10, args, ErrorSink));
+		CHECK(intArg == -160);
+		CHECK(unsignedIntArg == 15);
+		CHECK(charArg == 'a');
+		CHECK(floatArg == 1.0f);
+		CHECK(smallIntArg == 16);
+		CHECK(smallUintArg == 255);
+		CHECK(int16 == 32767);
 	}
 	GIVEN("A char when we expect an integer.") {
 		const char* const args[] = { "", "--small-int", "a" };
