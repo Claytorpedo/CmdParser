@@ -232,13 +232,13 @@ SCENARIO("Taking arithmetic arguments.") {
 		CHECK(smallUintArg == 40);
 		CHECK(int16 == 100);
 	}
-	GIVEN("Integers in hex format.") {
-		const char* const args[] = {"", "-i", "-0xA0", "--uint=0x0F", "--small-int", "0x10", "--small-uint", "0xFF", "-t", "0x8000"};
-		CHECK(cmdParser.parse(10, args, ErrorSink));
+	GIVEN("Values in hex format.") {
+		const char* const args[] = {"", "-i", "-0xA0", "--uint=0x0F", "--float=0xFF", "--small-int", "0x10", "--small-uint", "0xFF", "-t", "0x8000"};
+		CHECK(cmdParser.parse(11, args, ErrorSink));
 		CHECK(intArg == -160);
 		CHECK(unsignedIntArg == 15);
 		CHECK(charArg == 'a');
-		CHECK(floatArg == 1.0f);
+		CHECK(floatArg == 255.0f);
 		CHECK(smallIntArg == 16);
 		CHECK(smallUintArg == 255);
 		CHECK(int16 == 32767);

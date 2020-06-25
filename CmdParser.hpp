@@ -281,19 +281,19 @@ private:
 		std::optional<std::string> wordKey = std::nullopt;
 		std::string defaultValStr;
 		std::string description;
-		Arg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& description)
+		Arg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& description) noexcept
 			: charKey(std::move(charKey)), wordKey(std::move(wordKey)), defaultValStr(std::move(defaultValStr)), description(std::move(description)) {}
 
-		virtual bool set(std::string_view input) = 0;
-		bool hasCharKey(char key)             const { return charKey && *charKey == key; }
-		bool hasWordKey(std::string_view key) const { return wordKey && *wordKey == key; }
+		virtual bool set(std::string_view input) noexcept = 0;
+		bool hasCharKey(char key) const noexcept { return charKey && *charKey == key; }
+		bool hasWordKey(std::string_view key) const noexcept { return wordKey && *wordKey == key; }
 	};
 
 	struct FlagArg : public Arg {
-		FlagArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, bool& arg, bool defaultVal)
+		FlagArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, bool& arg, bool defaultVal) noexcept
 			: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), flagRef(arg), defaultVal(defaultVal) {}
 
-		bool set(std::string_view) override {
+		bool set(std::string_view) noexcept override {
 			flagRef = !defaultVal;
 			return true;
 		}
@@ -302,10 +302,10 @@ private:
 	};
 
 	struct BoolArg : public Arg {
-		BoolArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, bool& arg)
+		BoolArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, bool& arg) noexcept
 			: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), boolRef(arg) {}
 
-		bool set(std::string_view input) override {
+		bool set(std::string_view input) noexcept final {
 			std::string lower(input);
 			std::transform(lower.begin(), lower.end(), lower.begin(), [](auto c) { return ::isupper(c) ? static_cast<char>(::tolower(c)) : c; });
 			if (std::find_if(TrueStrings.cbegin(), TrueStrings.cend(), [&lower](std::string_view o) { return lower == o; }) != TrueStrings.cend()) {
@@ -322,87 +322,137 @@ private:
 
 	template <class ArgType>
 	struct NumericArg : public Arg {
-		NumericArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, ArgType& arg)
+		NumericArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, ArgType& arg) noexcept
 			: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), argRef(arg) {}
 
-		bool set(std::string_view input) override {
-			const auto insensitiveComp = [](char lhs, char rhs) {
+		static constexpr std::string_view Hex = "0x";
+		static constexpr std::string_view NegativeHex = "-0x";
+		static constexpr std::size_t BufferSize = 64;
+		static_assert(BufferSize > 3);
+
+		std::string_view getNegativeHexView(char* buffer, std::string_view input) const noexcept {
+			buffer[0] = '-';
+			const auto begin = std::next(input.begin(), 3);
+			const auto end = std::next(begin, std::min(input.size() - 3, BufferSize - 2));
+			std::copy(begin, end, buffer + 1);
+			return {buffer, std::min(input.size() - 2, BufferSize)};
+		}
+
+		enum class NumericStringType {
+			General,
+			Hex,
+			NegativeHex
+		};
+		NumericStringType getNumericStringType(std::string_view input) const noexcept {
+			const auto caseInsensitiveComp = [](char lhs, char rhs) {
 				return lhs == rhs || std::tolower(static_cast<unsigned char>(lhs)) == std::tolower(static_cast<unsigned char>(rhs));
 			};
-			constexpr std::string_view hex = "0x";
-			constexpr std::string_view negHex = "-0x";
+			if (input.size() > 2) {
+				if (std::equal(Hex.begin(), Hex.end(), input.begin(), caseInsensitiveComp))
+					return NumericStringType::Hex;
+				else if (std::equal(NegativeHex.begin(), NegativeHex.end(), input.begin(), caseInsensitiveComp))
+					return NumericStringType::NegativeHex;
+			}
+			return NumericStringType::General;
+		}
+
+		template <typename T>
+		bool trySetValue(T val, std::errc errc, bool isPositive) noexcept {
+			if (errc == std::errc{}) {
+				if (val > (std::numeric_limits<ArgType>::max)()) {
+					argRef = (std::numeric_limits<ArgType>::max)();
+				} else if (val < std::numeric_limits<ArgType>::lowest()) {
+					argRef = std::numeric_limits<ArgType>::lowest();
+				} else {
+					argRef = static_cast<ArgType>(val);
+				}
+				return true;
+			} else if (errc == std::errc::result_out_of_range) {
+				argRef = isPositive ? (std::numeric_limits<ArgType>::max)() : std::numeric_limits<ArgType>::lowest();
+				return true;
+			} else if (errc == std::errc::invalid_argument) {
+				// report
+			}
+			return false;
+		}
+
+		bool parseInteger(std::string_view input) noexcept {
+			int base = 10;
+			char buffer[BufferSize];
+			switch (getNumericStringType(input)) {
+				case NumericStringType::General:
+					break;
+				case NumericStringType::Hex:
+					input.remove_prefix(Hex.size());
+					if (input.empty())
+						return false;
+					base = 16;
+					break;
+				case NumericStringType::NegativeHex:
+					input = getNegativeHexView(buffer, input);
+					base = 16;
+					break;
+			}
+
+			std::int64_t val = 0;
+			const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val, base);
+			return trySetValue(val, errc, input[0] == '-');
+		}
+		bool parseUnsignedInteger(std::string_view input) noexcept {
+			int base = 10;
+			switch (getNumericStringType(input)) {
+				case NumericStringType::General:
+					break;
+				case NumericStringType::Hex:
+					input.remove_prefix(Hex.size());
+					if (input.empty())
+						return false;
+					base = 16;
+					break;
+				case NumericStringType::NegativeHex:
+					return false;
+			}
+
+			std::uint64_t val = 0;
+			const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val, base);
+			return trySetValue(val, errc, input[0] == '-');
+		}
+		bool parseFloat(std::string_view input) noexcept {
+			auto format = std::chars_format::general;
+			char buffer[BufferSize];
+			switch (getNumericStringType(input)) {
+				case NumericStringType::General:
+					break;
+				case NumericStringType::Hex:
+					input.remove_prefix(Hex.size());
+					if (input.empty())
+						return false;
+					format = std::chars_format::hex;
+					break;
+				case NumericStringType::NegativeHex:
+					input = getNegativeHexView(buffer, input);
+					format = std::chars_format::hex;
+					break;
+			}
+
+			ArgType val = 0;
+			const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val, format);
+			return trySetValue(val, errc, input[0] == '-');
+		}
+
+		bool set(std::string_view input) noexcept final {
+			if (input.empty())
+				return false;
 
 			// In cases where integer arguments would overflow, prefer setting the min/max value instead of failing.
 			if constexpr (!std::is_same_v<ArgType, char> && std::is_integral_v<ArgType>) {
 				if constexpr (std::is_unsigned_v<ArgType>) {
-
-					int base = 10;
-					if (input.size() > 2 && std::equal(hex.begin(), hex.end(), input.begin(), insensitiveComp)) {
-						input.remove_prefix(hex.size());
-						base = 16;
-					}
-
-					std::uint64_t val = 0;
-					const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val, base);
-					if (errc == std::errc{}) {
-						if (val > std::numeric_limits<ArgType>::max()) {
-							argRef = std::numeric_limits<ArgType>::max();
-						} else {
-							argRef = static_cast<ArgType>(val);
-						}
-						return true;
-					} else if (errc == std::errc::invalid_argument) {
-						// report
-					} else if (errc == std::errc::result_out_of_range) {
-						// report
-					}
-					return false;
+					return parseUnsignedInteger(input);
 				} else {
-
-					int base = 10;
-					constexpr std::size_t bufferSize = 64;
-					char buffer[bufferSize];
-					if (input.size() > 2) {
-						if (std::equal(hex.begin(), hex.end(), input.begin(), insensitiveComp)) {
-							input.remove_prefix(hex.size());
-							base = 16;
-						} else if (std::equal(negHex.begin(), negHex.end(), input.begin(), insensitiveComp)) {
-							// We still need the minus sign. Use the buffer.
-							buffer[0] = '-';
-							const auto begin = std::next(input.begin(), 3);
-							const auto end = std::next(begin, std::min(input.size() - 3, bufferSize - 2));
-							std::copy(begin, end, buffer + 1);
-							input = {buffer, std::min(input.size() - 2, bufferSize)};
-							base = 16;
-						}
-					}
-
-					std::int64_t val = 0;
-					const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val, base);
-					if (errc == std::errc{}) {
-						if (val > std::numeric_limits<ArgType>::max()) {
-							argRef = std::numeric_limits<ArgType>::max();
-						} else if (val < std::numeric_limits<ArgType>::min()) {
-							argRef = std::numeric_limits<ArgType>::min();
-						} else {
-							argRef = static_cast<ArgType>(val);
-						}
-						return true;
-					} else if (errc == std::errc::invalid_argument) {
-						// report
-					} else if (errc == std::errc::result_out_of_range) {
-						// report
-					}
-					return false;
+					return parseInteger(input);
 				}
 			} else if constexpr (std::is_floating_point_v<ArgType>) {
-				ArgType val = 0;
-				const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val);
-				if (errc == std::errc{}) {
-					argRef = val;
-					return true;
-				}
-				return false;
+				return parseFloat(input);
 			}
 			else if constexpr (std::is_same_v<ArgType, char>) {
 				if (input.size() != 1)
@@ -411,15 +461,16 @@ private:
 				return true;
 			}
 		}
+
 		ArgType& argRef;
 	};
 
 	template <class ArgType>
 	struct StringArg : public Arg {
-		StringArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, ArgType& arg)
+		StringArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, ArgType& arg) noexcept
 			: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), stringRef(arg) {}
 
-		bool set(std::string_view input) override {
+		bool set(std::string_view input) noexcept final {
 			stringRef = input;
 			return true;
 		}
