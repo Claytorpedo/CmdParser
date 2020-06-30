@@ -58,7 +58,7 @@ int main(int argc, const char* argv[]) {
 
     if (!cmdParser.parse(argc, argv, [](auto error) { std::cout << "Error parsing: " << error.message() << "\n"; })) {
         // If we get something we don't expect, print help.
-        cmdParser.printHelp("My test program: Demonstrates example usage.");
+        std::cout << cmdParser.getHelpText("My test program: Demonstrates example usage.");
         return 1;
     }
 

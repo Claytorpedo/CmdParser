@@ -25,6 +25,7 @@ struct Error {
 	const std::string& message() const { return error; }
 };
 
+// Can optionally be returned from an error handler to signify early termination cases.
 enum class ErrorResult {
 	Terminate,
 	Continue
@@ -38,6 +39,7 @@ auto MakeError(Args&&... args) {
 	(error.error.append(std::forward<Args>(args)), ...);
 	return error;
 }
+
 } // namespace Detail
 
 class CmdParser {
@@ -197,46 +199,79 @@ public:
 		return success;
 	}
 
-	void printHelp(std::string_view programDescription = {}, std::ostream& outstream = std::cout) {
-		outstream << "----------------------------------------\n";
-		if (!programDescription.empty())
-			outstream << programDescription << "\n";
+	std::string getHelpText(std::string_view programDescription = {}) {
+		std::string helpText;
+		helpText.reserve(512);
+		helpText = "----------------------------------------\n";
+		if (!programDescription.empty()) {
+			helpText += programDescription;
+			helpText += '\n';
+		}
 
-		auto printArg = [&outstream](const auto& arg) {
-			outstream << " "; // Indent the section.
-			if (arg.charKey) {
-				outstream << CharArgDelim << *arg.charKey;
-			} else {
-				outstream << "  ";
+		auto writeArg = [&helpText](const auto& arg) {
+			helpText += ' '; // Indent the section.
+			// Char argument.
+			{
+				if (arg.charKey) {
+					helpText += CharArgDelim;
+					helpText += *arg.charKey;
+				} else {
+					helpText += ' ';
+					helpText += ' ';
+				}
+			}
+			// Word argument.
+			{
+				helpText += ' ';
+				constexpr std::string_view Spacer = ".........................";
+				if (arg.wordKey) {
+					helpText.append(WordArgDelim);
+					helpText.append(*arg.wordKey);
+					helpText += ' ';
+					const std::size_t argSize = WordArgDelim.size() + arg.wordKey->size() + 1;
+					if (argSize < Spacer.size())
+						helpText.append(Spacer.begin(), std::next(Spacer.begin(), Spacer.size() - argSize));
+				} else {
+					helpText += Spacer;
+				}
+			}
+			// Default value.
+			{
+				constexpr std::string_view DefaultHeader = "[default: ";
+				constexpr std::string_view Spacer = "       ";
+				constexpr std::string_view DefaultEnd = "] ";
+				helpText.append(DefaultHeader);
+				if (const auto size = arg.defaultValStr.size(); size < Spacer.size())
+					helpText.append(Spacer.begin(), std::next(Spacer.begin(), Spacer.size() - size));
+				helpText.append(arg.defaultValStr);
+				helpText.append(DefaultEnd);
 			}
 
-			constexpr std::string_view spacer = " .........................";
-			if (arg.wordKey) {
-				outstream << std::setfill('.') << std::left << std::setw(spacer.size()) << (" " + std::string(WordArgDelim) + *arg.wordKey + " ");
-			} else {
-				outstream << spacer;
-			}
-			outstream << "[default: " << std::setfill(' ') << std::right << std::setw(8) << arg.defaultValStr << "] " << arg.description << "\n";
+			helpText.append(arg.description);
+			helpText += '\n';
 		};
 
 		if (!flags_.empty()) {
-			outstream << "Flags:\n";
+			constexpr std::string_view Flags = "Flags:\n";
+			helpText.append(Flags);
 			for (const auto& flag : flags_) {
-				printArg(flag);
+				writeArg(flag);
 			}
 		}
 
 		if (!args_.empty()) {
-			outstream << "Arguments:\n";
+			constexpr std::string_view Arguments = "Arguments:\n";
+			helpText.append(Arguments);
 			for (const auto& arg : args_) {
-				printArg(*arg);
+				writeArg(*arg);
 			}
 		}
-		outstream << std::endl;
+		helpText += '\n';
+		return helpText;
 	}
 
 	// Must be called after parsing.
-	std::string_view getInvokeName() { return invoke_name_ ? *invoke_name_ : "Invoke name not parsed!"; }
+	std::string_view getInvokeName() const noexcept { return invoke_name_; }
 
 private:
 	// Returns an attached parameter if found.
@@ -478,8 +513,8 @@ private:
 	};
 
 	std::vector<std::unique_ptr<Arg>> args_;
-	std::vector<FlagArg>              flags_;
-	std::optional<std::string>        invoke_name_ = std::nullopt;
+	std::vector<FlagArg> flags_;
+	std::string invoke_name_;
 };
 } // cmd
 
