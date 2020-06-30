@@ -32,12 +32,22 @@ enum class ErrorResult {
 };
 
 namespace Detail {
+
 template <typename... Args>
 auto MakeError(Args&&... args) {
 	Error error;
 	error.error.reserve((std::size(args) + ...));
 	(error.error.append(std::forward<Args>(args)), ...);
 	return error;
+}
+
+template <typename T>
+std::string toString(const T val) {
+	constexpr std::size_t BufferSize = 64;
+	char buffer[BufferSize];
+	const auto [ptr, errc] = std::to_chars(buffer, buffer + BufferSize, val);
+	assert(errc == std::errc{}); // Buffer should be large enough.
+	return {buffer, static_cast<std::size_t>(std::distance(buffer, ptr))};
 }
 
 } // namespace Detail
@@ -74,9 +84,7 @@ public:
 		type push(ArithmeticType& argRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, ArithmeticType defaultVal = 0, std::string description = "", bool verifyUnique = true) {
 		argRef = defaultVal;
 		checkValid(charKey, wordKey, verifyUnique);
-		std::ostringstream stream;
-		stream << defaultVal;
-		args_.emplace_back(std::make_unique<NumericArg<ArithmeticType>>(std::move(charKey), std::move(wordKey), stream.str(), std::move(description), argRef));
+		args_.emplace_back(std::make_unique<NumericArg<ArithmeticType>>(std::move(charKey), std::move(wordKey), Detail::toString(defaultVal), std::move(description), argRef));
 	}
 
 	// std::string or std::string_view.
@@ -87,9 +95,9 @@ public:
 		checkValid(charKey, wordKey, verifyUnique);
 		std::string defaultValStr;
 		defaultValStr.reserve(defaultVal.size() + 2);
-		defaultValStr = "\"";
+		defaultValStr = '\"';
 		defaultValStr += defaultVal;
-		defaultValStr += "\"";
+		defaultValStr += '\"';
 		args_.emplace_back(std::make_unique<StringArg<StringType>>(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(description), stringRef));
 	}
 
@@ -516,6 +524,7 @@ private:
 	std::vector<FlagArg> flags_;
 	std::string invoke_name_;
 };
+
 } // cmd
 
 #endif // INCLUDE_CMD_PARSER_HPP
