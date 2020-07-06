@@ -98,17 +98,15 @@ public:
 	}
 
 	// Any non-bool integral or floating-point type.
-	template <class ArithmeticType>
-	typename std::enable_if<std::is_arithmetic_v<ArithmeticType> && !std::is_same_v<ArithmeticType, bool>>::
-		type push(ArithmeticType& argRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string description = "", bool verifyUnique = true) {
+	template <class ArithmeticType, std::enable_if_t<std::is_arithmetic_v<ArithmeticType> && !std::is_same_v<ArithmeticType, bool>, int> = 0>
+	void push(ArithmeticType& argRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string description = "", bool verifyUnique = true) {
 		checkValid(charKey, wordKey, verifyUnique);
 		args_.emplace_back(std::make_unique<NumericArg<ArithmeticType>>(std::move(charKey), std::move(wordKey), Detail::toString(argRef), std::move(description), argRef));
 	}
 
 	// std::string or std::string_view.
-	template <class StringType>
-	typename std::enable_if<std::is_same_v<StringType, std::string> || std::is_same_v<StringType, std::string_view>>::
-		type push(StringType& stringRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string description = "", bool verifyUnique = true) {
+	template <class StringType, std::enable_if_t<std::is_same_v<StringType, std::string> || std::is_same_v<StringType, std::string_view>, int> = 0>
+	void push(StringType& stringRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string description = "", bool verifyUnique = true) {
 		checkValid(charKey, wordKey, verifyUnique);
 		std::string defaultValStr;
 		defaultValStr.reserve(stringRef.size() + 2);
