@@ -22,12 +22,12 @@ SCENARIO("There are no arguments.") {
 
 SCENARIO("Taking flag arguments.") {
 	cmd::CmdParser cmdParser;
-	bool flagA;
-	bool flagB;
-	bool flagNotC;
-	cmdParser.pushFlag(flagA, 'a', "flagA", false, "Flag A");
-	cmdParser.pushFlag(flagB, 'b', "flagB", false, "Flag B");
-	cmdParser.pushFlag(flagNotC, 'c', "flagC", true, "Flag not C");
+	bool flagA = false;
+	bool flagB = false;
+	bool flagNotC = true;
+	cmdParser.pushFlag(flagA, 'a', "flagA", "Flag A");
+	cmdParser.pushFlag(flagB, 'b', "flagB", "Flag B");
+	cmdParser.pushFlag(flagNotC, 'c', "flagC", "Flag not C");
 	GIVEN("Flag A is set.") {
 		const char* const args[] = { "", "-a" };
 		CHECK(cmdParser.parse(2, args, ErrorSink));
@@ -105,9 +105,10 @@ SCENARIO("Taking flag arguments.") {
 
 SCENARIO("Taking bool arguments.") {
 	cmd::CmdParser cmdParser;
-	bool boolA, boolB;
-	cmdParser.push(boolA, 'a', "boolA", false, "Bool A");
-	cmdParser.push(boolB, 'b', "acceptB", false, "Bool B");
+	bool boolA = false;
+	bool boolB = false;
+	cmdParser.push(boolA, 'a', "boolA", "Bool A");
+	cmdParser.push(boolB, 'b', "acceptB", "Bool B");
 	GIVEN("Bool A is set.") {
 		const char* const args[] = { "", "-a=true" };
 		CHECK(cmdParser.parse(2, args, ErrorSink));
@@ -130,17 +131,17 @@ SCENARIO("Taking bool arguments.") {
 
 SCENARIO("Taking arithmetic arguments.") {
 	cmd::CmdParser cmdParser;
-	int32_t intArg;
-	uint32_t unsignedIntArg;
-	char charArg;
-	float floatArg;
-	int8_t smallIntArg;
-	uint8_t smallUintArg;
-	int16_t int16;
-	cmdParser.push(intArg, 'i', "int", 0);
-	cmdParser.push(unsignedIntArg, 'u', "uint", 1u);
-	cmdParser.push(charArg, 'c', "char", 'a');
-	cmdParser.push(floatArg, 'f', "float", 1.0f);
+	int32_t intArg = 0;
+	uint32_t unsignedIntArg = 1;
+	char charArg = 'a';
+	float floatArg = 1.0f;
+	int8_t smallIntArg = 0;
+	uint8_t smallUintArg = 0;
+	int16_t int16 = 0;
+	cmdParser.push(intArg, 'i', "int");
+	cmdParser.push(unsignedIntArg, 'u', "uint");
+	cmdParser.push(charArg, 'c', "char");
+	cmdParser.push(floatArg, 'f', "float");
 	cmdParser.push(smallIntArg, 's', "small-int");
 	cmdParser.push(smallUintArg, std::nullopt, "small-uint");
 	cmdParser.push(int16, 't');
@@ -260,10 +261,10 @@ SCENARIO("Taking arithmetic arguments.") {
 
 SCENARIO("Giving overflow values for integer arguments.") {
 	cmd::CmdParser cmdParser;
-	int32_t intArg;
-	int8_t smallIntArg;
-	uint8_t smallUintArg;
-	int16_t int16;
+	int32_t intArg = 0;
+	int8_t smallIntArg = 0;
+	uint8_t smallUintArg = 0;
+	int16_t int16 = 0;
 	cmdParser.push(intArg, 'i');
 	cmdParser.push(smallIntArg, 's');
 	cmdParser.push(smallUintArg, 'u');
@@ -322,9 +323,9 @@ SCENARIO("Giving overflow values for integer arguments.") {
 SCENARIO("Taking string arguments") {
 	cmd::CmdParser cmdParser;
 	std::string strArg;
-	std::string_view strViewArg;
+	std::string_view strViewArg = "default";
 	cmdParser.push(strArg, 's', "str");
-	cmdParser.push(strViewArg, 'v', "view", "default", "this is used as a string view");
+	cmdParser.push(strViewArg, 'v', "view", "this is used as a string view");
 	GIVEN("A string.") {
 		const std::string input = "this is a test string";
 		const char* const args[] = { "", "-s", input.c_str() };
@@ -348,11 +349,11 @@ SCENARIO("Taking string arguments") {
 
 SCENARIO("Taking a mixture of argument types.") {
 	cmd::CmdParser cmdParser;
-	bool flag;
-	bool boolArg;
-	int32_t intArg;
-	size_t sizeTArg;
-	float floatArg;
+	bool flag = false;
+	bool boolArg = false;
+	int32_t intArg = 0;
+	size_t sizeTArg = 0;
+	float floatArg = 0;
 	std::string_view viewArg;
 	cmdParser.pushFlag(flag, 'f');
 	cmdParser.push(boolArg, std::nullopt, "bool");

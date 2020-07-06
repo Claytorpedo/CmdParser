@@ -38,50 +38,56 @@ Input for these is case-insensitive.
 ```c++
 #include "CmdParser.hpp"
 
-// Make a bundle of options to pass around.
-struct MyOptions {
-    bool enableSpeedyMode = true;
-    bool userConsent = false;
-    int numberOfCakes = 0;
-    float cakeFraction = 13.4f;
-    std::string_view cakeName;
+#include <iostream>
+
+struct MyOptions { // Make a bundle of options to pass around.
+	bool enableSpeedyMode = false;
+	bool userConsent = true;
+	int numberOfCakes = 0;
+	float cakeFraction = 1.0f;
+	std::string_view cakeName = "Cakeman";
 };
 
 int main(int argc, const char* argv[]) {
-    MyOptions options;
-    cmd::CmdParser cmdParser;
-    cmdParser.pushFlag(options.enableSpeedyMode, 's', "enable-speedy-mode", false, "This is a flag.");
-    cmdParser.push(options.userConsent, std::nullopt, "consent", true, "Whether you consent.");
-    cmdParser.push(options.numberOfCakes, 'n', "num-cakes", 0, "The number of cakes.");
-    cmdParser.push(options.cakeFraction, 'f', std::nullopt, 1.0f, "The fraction of cakes.");
-    cmdParser.push(options.cakeName, std::nullopt, "cake-name", "Cakeman", "Name your cake.");
+	MyOptions options;
+	cmd::CmdParser cmdParser;
+	cmdParser.pushFlag(options.enableSpeedyMode, 's', "enable-speedy-mode", "This is a flag.");
+	cmdParser.push(options.userConsent, std::nullopt, "consent", "Whether you consent.");
+	cmdParser.push(options.numberOfCakes, 'n', "num-cakes", "The number of cakes.");
+	cmdParser.push(options.cakeFraction, 'f', std::nullopt, "The fraction of cakes.");
+	cmdParser.push(options.cakeName, std::nullopt, "cake-name", "Name your cake.");
 
-    if (!cmdParser.parse(argc, argv, [](auto error) { std::cout << "Error parsing: " << error.message() << "\n"; })) {
-        // If we get something we don't expect, print help.
-        std::cout << cmdParser.getHelpText("My test program: Demonstrates example usage.");
-        return 1;
-    }
+	if (!cmdParser.parse(argc, argv, [](auto error) { std::cout << "Error parsing: " << error.message() << "\n"; })) {
+		// If we get something we don't expect, print help.
+		std::cout << cmdParser.getHelpText("My test program: Demonstrates example usage.");
+		return 1;
+	}
 
-    // Use options here.
+	// Use options here.
+	std::cout << "\nresults:\n";
+	std::cout << "options.enableSpeedyMode: " << (options.enableSpeedyMode ? "true" : "false") << "\n";
+	std::cout << "options.userConsent:      " << (options.userConsent ? "true" : "false") << "\n";
+	std::cout << "options.numberOfCakes:    " << options.numberOfCakes << "\n";
+	std::cout << "options.cakeFraction:     " << options.cakeFraction << "\n";
+	std::cout << "options.cakeName:         " << options.cakeName << "\n";
+	std::cout << "\n";
 
-    return 0;
+	return 0;
 }
 
 ```
 Example output for bad input:
 ```
-@:/test$ ./a.out "unexpected input"
-CmdParser Error: Unrecognized command format "unexpected input"
+$ ./a.out --consent wrong
+Error parsing: Unexpected format for argument "consent" with parameter "wrong".
 ----------------------------------------
 My test program: Demonstrates example usage.
 Flags:
- -s --enable-speedy-mode ....[default:    false] This is a flag.
+ -s --enable-speedy-mode ....[default:   false] This is a flag.
 Arguments:
-    --consent ...............[default:     true] Whether you consent.
- -n --num-cakes .............[default:        0] The number of cakes.
- -f .........................[default:        1] The fraction of cakes.
+    --consent ...............[default:    true] Whether you consent.
+ -n --num-cakes .............[default:       0] The number of cakes.
+ -f .........................[default:       1] The fraction of cakes.
     --cake-name .............[default: "Cakeman"] Name your cake.
-
-alex@compy:/mnt/e/Programming/test$
 
 ```

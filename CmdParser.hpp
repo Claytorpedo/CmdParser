@@ -86,38 +86,34 @@ public:
 	CmdParser() = default;
 
 	// Set to the opposite of defaultVal if present.
-	void pushFlag(bool& flagRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, bool defaultVal = false, std::string description = "", bool verifyUnique = true) {
-		flagRef = defaultVal;
+	void pushFlag(bool& flagRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string description = "", bool verifyUnique = true) {
 		checkValid(charKey, wordKey, verifyUnique);
-		flags_.emplace_back(std::move(charKey), std::move(wordKey), defaultVal ? "true" : "false", std::move(description), flagRef, defaultVal);
+		flags_.emplace_back(std::move(charKey), std::move(wordKey), flagRef ? "true" : "false", std::move(description), flagRef, flagRef);
 	}
 
 	// Bool type where the user needs to specify true or false.
-	void push(bool& boolRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, bool defaultVal = false, std::string description = "", bool verifyUnique = true) {
-		boolRef = defaultVal;
+	void push(bool& boolRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string description = "", bool verifyUnique = true) {
 		checkValid(charKey, wordKey, verifyUnique);
-		args_.emplace_back(std::make_unique<BoolArg>(std::move(charKey), std::move(wordKey), defaultVal ? "true" : "false", std::move(description), boolRef));
+		args_.emplace_back(std::make_unique<BoolArg>(std::move(charKey), std::move(wordKey), boolRef ? "true" : "false", std::move(description), boolRef));
 	}
 
 	// Any non-bool integral or floating-point type.
 	template <class ArithmeticType>
 	typename std::enable_if<std::is_arithmetic_v<ArithmeticType> && !std::is_same_v<ArithmeticType, bool>>::
-		type push(ArithmeticType& argRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, ArithmeticType defaultVal = 0, std::string description = "", bool verifyUnique = true) {
-		argRef = defaultVal;
+		type push(ArithmeticType& argRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string description = "", bool verifyUnique = true) {
 		checkValid(charKey, wordKey, verifyUnique);
-		args_.emplace_back(std::make_unique<NumericArg<ArithmeticType>>(std::move(charKey), std::move(wordKey), Detail::toString(defaultVal), std::move(description), argRef));
+		args_.emplace_back(std::make_unique<NumericArg<ArithmeticType>>(std::move(charKey), std::move(wordKey), Detail::toString(argRef), std::move(description), argRef));
 	}
 
 	// std::string or std::string_view.
 	template <class StringType>
 	typename std::enable_if<std::is_same_v<StringType, std::string> || std::is_same_v<StringType, std::string_view>>::
-		type push(StringType& stringRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string_view defaultVal = "", std::string description = "", bool verifyUnique = true) {
-		stringRef = defaultVal;
+		type push(StringType& stringRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string description = "", bool verifyUnique = true) {
 		checkValid(charKey, wordKey, verifyUnique);
 		std::string defaultValStr;
-		defaultValStr.reserve(defaultVal.size() + 2);
+		defaultValStr.reserve(stringRef.size() + 2);
 		defaultValStr = '\"';
-		defaultValStr += defaultVal;
+		defaultValStr += stringRef;
 		defaultValStr += '\"';
 		args_.emplace_back(std::make_unique<StringArg<StringType>>(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(description), stringRef));
 	}
