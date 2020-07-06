@@ -233,12 +233,18 @@ SCENARIO("Taking arithmetic arguments.") {
 		CHECK(int16 == 100);
 	}
 	GIVEN("Values in hex format.") {
+#ifdef __cpp_lib_to_chars
 		const char* const args[] = {"", "-i", "-0xA0", "--uint=0x0F", "--float=0xFF", "--small-int", "0x10", "--small-uint", "0xFF", "-t", "0x8000"};
-		CHECK(cmdParser.parse(11, args, ErrorSink));
+#else
+		const char* const args[] = {"", "-i", "-0xA0", "--uint=0x0F", "--small-int", "0x10", "--small-uint", "0xFF", "-t", "0x8000"};
+#endif
+		CHECK(cmdParser.parse(sizeof(args) / sizeof(args[0]), args, ErrorSink));
 		CHECK(intArg == -160);
 		CHECK(unsignedIntArg == 15);
 		CHECK(charArg == 'a');
+#ifdef __cpp_lib_to_chars
 		CHECK(floatArg == 255.0f);
+#endif
 		CHECK(smallIntArg == 16);
 		CHECK(smallUintArg == 255);
 		CHECK(int16 == 32767);

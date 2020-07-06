@@ -9,9 +9,14 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <sstream>
 #include <type_traits>
 #include <vector>
+
+// Both gcc and clang do not supporrt floating point charconv operations yet.
+// Use a stringstream as a workaround for now.
+#ifndef __cpp_lib_to_chars
+#include <sstream>
+#endif
 
 namespace cmd {
 
@@ -39,6 +44,23 @@ auto MakeError(Args&&... args) {
 	return error;
 }
 
+#ifndef __cpp_lib_to_chars
+template <typename T, typename = std::enable_if_t<std::is_floating_point_v<T>>>
+std::from_chars_result fromCharsStringStream(const char* first, const char* last, T& val, [[maybe_unused]] bool isHexFormat) {
+	// Can't seem to get floating point working properly with gcc, and I doubt I will ever actually need it.
+	std::istringstream stream{std::string(first, last)};
+	const bool success = static_cast<bool>(stream >> val);
+	const auto read = stream.gcount();
+	return {first + read, success ? std::errc{} : std::errc::invalid_argument};
+}
+
+template <typename T>
+std::string toString(const T val) {
+	std::ostringstream stream;
+	stream << val;
+	return std::move(stream).str();
+}
+#else
 template <typename T>
 std::string toString(const T val) {
 	constexpr std::size_t BufferSize = 64;
@@ -47,6 +69,7 @@ std::string toString(const T val) {
 	assert(errc == std::errc{}); // Buffer should be large enough.
 	return {buffer, static_cast<std::size_t>(std::distance(buffer, ptr))};
 }
+#endif // !__cpp_lib_to_chars
 
 } // namespace Detail
 
@@ -459,7 +482,7 @@ private:
 			return trySetValue(val, errc, input[0] == '-');
 		}
 		bool parseFloat(std::string_view input) noexcept {
-			auto format = std::chars_format::general;
+			bool isHexFormat = false;
 			char buffer[BufferSize];
 			switch (getNumericStringType(input)) {
 				case NumericStringType::General:
@@ -468,16 +491,21 @@ private:
 					input.remove_prefix(Hex.size());
 					if (input.empty())
 						return false;
-					format = std::chars_format::hex;
+					isHexFormat = true;
 					break;
 				case NumericStringType::NegativeHex:
 					input = getNegativeHexView(buffer, input);
-					format = std::chars_format::hex;
+					isHexFormat = true;
 					break;
 			}
 
 			ArgType val = 0;
-			const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val, format);
+#ifndef __cpp_lib_to_chars
+			const auto [p, errc] = Detail::fromCharsStringStream(input.data(), input.data() + input.size(), val, isHexFormat);
+#else
+			const auto format = isHexFormat ? std::chars_format::hex : std::chars_format::general;
+			const auto [p, errc] = from_chars(input.data(), input.data() + input.size(), val, format);
+#endif
 			return trySetValue(val, errc, input[0] == '-');
 		}
 

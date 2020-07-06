@@ -1,5 +1,7 @@
 #include "CmdParser.hpp"
 
+#include <iostream>
+
 struct MyOptions { // Make a bundle of options to pass around.
 	bool enableSpeedyMode = true;
 	bool userConsent = false;
