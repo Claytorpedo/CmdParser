@@ -36,6 +36,14 @@ enum class ErrorResult {
 
 namespace Detail {
 
+template <typename S>
+struct is_string_type : std::disjunction<
+	std::is_same<S, std::string>,
+	std::is_same<S, std::string_view>,
+	std::is_same<S, const char*>>
+{};
+template <typename S> inline constexpr bool is_string_type_v = is_string_type<S>::value;
+
 template <typename... Args>
 auto MakeError(Args&&... args) {
 	Error error;
@@ -105,15 +113,33 @@ public:
 	}
 
 	// std::string or std::string_view.
-	template <class StringType, std::enable_if_t<std::is_same_v<StringType, std::string> || std::is_same_v<StringType, std::string_view>, int> = 0>
+	template <class StringType, std::enable_if_t<Detail::is_string_type_v<StringType>, int> = 0>
 	void push(StringType& stringRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string description = "", bool verifyUnique = true) {
 		checkValid(charKey, wordKey, verifyUnique);
 		std::string defaultValStr;
-		defaultValStr.reserve(stringRef.size() + 2);
-		defaultValStr = '\"';
-		defaultValStr += stringRef;
-		defaultValStr += '\"';
+
+		std::string_view refView;
+		if constexpr (std::is_same_v<StringType, const char*>) {
+			if (stringRef)
+				refView = stringRef;
+		} else {
+			refView = stringRef;
+		}
+
+		if (!refView.empty()) {
+			defaultValStr.reserve(refView.size() + 2);
+			defaultValStr = '\"';
+			defaultValStr += refView;
+			defaultValStr += '\"';
+		}
 		args_.emplace_back(std::make_unique<StringArg<StringType>>(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(description), stringRef));
+	}
+
+	// std::optional can be used for required arguments, as clients can ensure they were set after parsing.
+	template <class RequiredType>
+	void push(std::optional<RequiredType>& ref, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string description = "", bool verifyUnique = true) {
+		checkValid(charKey, wordKey, verifyUnique);
+		args_.emplace_back(std::make_unique<OptionalArg<RequiredType>>(std::move(charKey), std::move(wordKey), std::move(description), ref));
 	}
 
 	// Returns false if an error is encountered.
@@ -227,7 +253,7 @@ public:
 		helpText.reserve(512);
 		helpText = "----------------------------------------\n";
 		if (!programDescription.empty()) {
-			helpText += programDescription;
+			helpText.append(programDescription);
 			helpText += '\n';
 		}
 
@@ -255,11 +281,11 @@ public:
 					if (argSize < Spacer.size())
 						helpText.append(Spacer.begin(), std::next(Spacer.begin(), Spacer.size() - argSize));
 				} else {
-					helpText += Spacer;
+					helpText.append(Spacer);
 				}
 			}
 			// Default value.
-			{
+			if (!arg.defaultValStr.empty()) {
 				constexpr std::string_view DefaultHeader = "[default: ";
 				constexpr std::string_view Spacer = "       ";
 				constexpr std::string_view DefaultEnd = "] ";
@@ -268,6 +294,9 @@ public:
 					helpText.append(Spacer.begin(), std::next(Spacer.begin(), Spacer.size() - size));
 				helpText.append(arg.defaultValStr);
 				helpText.append(DefaultEnd);
+			} else {
+				constexpr std::string_view Spacer = ".................. ";
+				helpText.append(Spacer);
 			}
 
 			helpText.append(arg.description);
@@ -339,8 +368,12 @@ private:
 		std::optional<std::string> wordKey = std::nullopt;
 		std::string defaultValStr;
 		std::string description;
+
 		Arg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& description) noexcept
 			: charKey(std::move(charKey)), wordKey(std::move(wordKey)), defaultValStr(std::move(defaultValStr)), description(std::move(description)) {}
+
+		Arg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& description) noexcept
+			: charKey(std::move(charKey)), wordKey(std::move(wordKey)), description(std::move(description)) {}
 
 		virtual bool set(std::string_view input) noexcept = 0;
 		bool hasCharKey(char key) const noexcept { return charKey && *charKey == key; }
@@ -349,7 +382,7 @@ private:
 
 	struct FlagArg : public Arg {
 		FlagArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, bool& arg, bool defaultVal) noexcept
-			: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), flagRef(arg), defaultVal(defaultVal) {}
+			: Arg{std::move(charKey), std::move(wordKey), std::move(desc), std::move(defaultValStr)}, flagRef(arg), defaultVal(defaultVal) {}
 
 		bool set(std::string_view) noexcept override {
 			flagRef = !defaultVal;
@@ -359,185 +392,224 @@ private:
 		bool defaultVal;
 	};
 
-	struct BoolArg : public Arg {
-		BoolArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, bool& arg) noexcept
-			: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), boolRef(arg) {}
+	template <typename RefType>
+	static bool trySetBool(RefType& ref, const std::string_view input) noexcept {
+		std::string lower(input);
+		std::transform(lower.begin(), lower.end(), lower.begin(), [](auto c) { return ::isupper(c) ? static_cast<char>(::tolower(c)) : c; });
+		if (std::find_if(TrueStrings.cbegin(), TrueStrings.cend(), [&lower](std::string_view o) { return lower == o; }) != TrueStrings.cend()) {
+			ref = true;
+		} else if (std::find_if(FalseStrings.cbegin(), FalseStrings.cend(), [&lower](std::string_view o) { return lower == o; }) != FalseStrings.cend()) {
+			ref = false;
+		} else {
+			return false;
+		}
+		return true;
+	}
 
-		bool set(std::string_view input) noexcept final {
-			std::string lower(input);
-			std::transform(lower.begin(), lower.end(), lower.begin(), [](auto c) { return ::isupper(c) ? static_cast<char>(::tolower(c)) : c; });
-			if (std::find_if(TrueStrings.cbegin(), TrueStrings.cend(), [&lower](std::string_view o) { return lower == o; }) != TrueStrings.cend()) {
-				boolRef = true;
-			} else if (std::find_if(FalseStrings.cbegin(), FalseStrings.cend(), [&lower](std::string_view o) { return lower == o; }) != FalseStrings.cend()) {
-				boolRef = false;
+	template <typename T, typename V = void> struct ref_type { using value_type = typename T::value_type; };
+	template <typename T> struct ref_type<T, typename std::enable_if_t<std::is_pod_v<T>>> { using value_type = T; };
+	template <typename T> using ref_type_t = typename ref_type<T>::value_type;
+
+	template <typename RefType, typename ResultType>
+	static bool trySetArithmeticResult(RefType& ref, ResultType val, std::errc errc, bool isPositive) noexcept {
+		using ArgType = ref_type_t<RefType>;
+		if (errc == std::errc{}) {
+			if (val > (std::numeric_limits<ArgType>::max)()) {
+				ref = (std::numeric_limits<ArgType>::max)();
+			} else if (val < (std::numeric_limits<ArgType>::lowest)()) {
+				ref = (std::numeric_limits<ArgType>::lowest)();
 			} else {
-				return false;
+				ref = static_cast<ArgType>(val);
 			}
 			return true;
+		} else if (errc == std::errc::result_out_of_range) {
+			ref = isPositive ? (std::numeric_limits<ArgType>::max)() : (std::numeric_limits<ArgType>::lowest)();
+			return true;
+		} else if (errc == std::errc::invalid_argument) {
+			// report?
 		}
+		return false;
+	}
+
+	static constexpr std::string_view Hex = "0x";
+	static constexpr std::string_view NegativeHex = "-0x";
+	static constexpr std::size_t BufferSize = 64;
+	static_assert(BufferSize > 3);
+
+	static std::string_view getNegativeHexView(char* buffer, std::string_view input) noexcept {
+		buffer[0] = '-';
+		const auto begin = std::next(input.begin(), 3);
+		const auto end = std::next(begin, std::min(input.size() - 3, BufferSize - 2));
+		std::copy(begin, end, buffer + 1);
+		return {buffer, std::min(input.size() - 2, BufferSize)};
+	};
+
+	enum class NumericStringType {
+		General,
+		Hex,
+		NegativeHex
+	};
+	static NumericStringType getNumericStringType(std::string_view input) noexcept {
+		const auto caseInsensitiveComp = [](char lhs, char rhs) {
+			return lhs == rhs || std::tolower(static_cast<unsigned char>(lhs)) == std::tolower(static_cast<unsigned char>(rhs));
+		};
+		if (input.size() > 2) {
+			if (std::equal(Hex.begin(), Hex.end(), input.begin(), caseInsensitiveComp))
+				return NumericStringType::Hex;
+			else if (std::equal(NegativeHex.begin(), NegativeHex.end(), input.begin(), caseInsensitiveComp))
+				return NumericStringType::NegativeHex;
+		}
+		return NumericStringType::General;
+	}
+
+	template <typename RefType>
+	static bool trySetSignedInteger(RefType& ref, std::string_view input) noexcept {
+		int base = 10;
+		char buffer[BufferSize];
+		switch (getNumericStringType(input)) {
+			case NumericStringType::General:
+				break;
+			case NumericStringType::Hex:
+				input.remove_prefix(Hex.size());
+				if (input.empty())
+					return false;
+				base = 16;
+				break;
+			case NumericStringType::NegativeHex:
+				input = getNegativeHexView(buffer, input);
+				base = 16;
+				break;
+		}
+
+		std::int64_t val = 0;
+		const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val, base);
+		return trySetArithmeticResult(ref, val, errc, input[0] == '-');
+	}
+
+	template <typename RefType>
+	static bool trySetUnsignedInteger(RefType& ref, std::string_view input) noexcept {
+		int base = 10;
+		switch (getNumericStringType(input)) {
+			case NumericStringType::General:
+				break;
+			case NumericStringType::Hex:
+				input.remove_prefix(Hex.size());
+				if (input.empty())
+					return false;
+				base = 16;
+				break;
+			case NumericStringType::NegativeHex:
+				return false;
+		}
+
+		std::uint64_t val = 0;
+		const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val, base);
+		return trySetArithmeticResult(ref, val, errc, input[0] == '-');
+	}
+
+	template <typename RefType>
+	static bool trySetFloat(RefType& ref, std::string_view input) noexcept {
+		bool isHexFormat = false;
+		char buffer[BufferSize];
+		switch (getNumericStringType(input)) {
+			case NumericStringType::General:
+				break;
+			case NumericStringType::Hex:
+				input.remove_prefix(Hex.size());
+				if (input.empty())
+					return false;
+				isHexFormat = true;
+				break;
+			case NumericStringType::NegativeHex:
+				input = getNegativeHexView(buffer, input);
+				isHexFormat = true;
+				break;
+		}
+
+		ref_type_t<RefType> val = 0;
+#ifndef __cpp_lib_to_chars
+		const auto [p, errc] = Detail::fromCharsStringStream(input.data(), input.data() + input.size(), val, isHexFormat);
+#else
+		const auto format = isHexFormat ? std::chars_format::hex : std::chars_format::general;
+		const auto [p, errc] = from_chars(input.data(), input.data() + input.size(), val, format);
+#endif
+		return trySetArithmeticResult(ref, val, errc, input[0] == '-');
+	}
+
+	template <typename RefType>
+	static bool trySetArithmetic(RefType& ref, const std::string_view input) noexcept {
+		using ArgType = ref_type_t<RefType>;
+
+		if (input.empty())
+			return false;
+
+		// In cases where integer arguments would overflow, prefer setting the min/max value instead of failing.
+		if constexpr (!std::is_same_v<ArgType, char> && std::is_integral_v<ArgType>) {
+			if constexpr (std::is_unsigned_v<ArgType>) {
+				return trySetUnsignedInteger(ref, input);
+			} else {
+				return trySetSignedInteger(ref, input);
+			}
+		} else if constexpr (std::is_floating_point_v<ArgType>) {
+			return trySetFloat(ref, input);
+		} else if constexpr (std::is_same_v<ArgType, char>) {
+			if (input.size() != 1)
+				return false;
+			ref = input[0];
+			return true;
+		}
+	}
+
+	template <typename RefType>
+	static bool setStringType(RefType& ref, const std::string_view input) noexcept {
+		if constexpr (std::is_same_v<ref_type_t<RefType>, const char*>) {
+			ref = input.data();
+		} else {
+			ref = input;
+		}
+		return true;
+	}
+
+	struct BoolArg : public Arg {
+		BoolArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, bool& arg) noexcept
+			: Arg{std::move(charKey), std::move(wordKey), std::move(desc), std::move(defaultValStr)}, boolRef(arg) {}
+
+		bool set(std::string_view input) noexcept final { return trySetBool(boolRef, input); }
 		bool& boolRef;
 	};
 
 	template <class ArgType>
 	struct NumericArg : public Arg {
 		NumericArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, ArgType& arg) noexcept
-			: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), argRef(arg) {}
+			: Arg{std::move(charKey), std::move(wordKey), std::move(desc), std::move(defaultValStr)}, argRef(arg) {}
 
-		static constexpr std::string_view Hex = "0x";
-		static constexpr std::string_view NegativeHex = "-0x";
-		static constexpr std::size_t BufferSize = 64;
-		static_assert(BufferSize > 3);
-
-		std::string_view getNegativeHexView(char* buffer, std::string_view input) const noexcept {
-			buffer[0] = '-';
-			const auto begin = std::next(input.begin(), 3);
-			const auto end = std::next(begin, std::min(input.size() - 3, BufferSize - 2));
-			std::copy(begin, end, buffer + 1);
-			return {buffer, std::min(input.size() - 2, BufferSize)};
-		}
-
-		enum class NumericStringType {
-			General,
-			Hex,
-			NegativeHex
-		};
-		NumericStringType getNumericStringType(std::string_view input) const noexcept {
-			const auto caseInsensitiveComp = [](char lhs, char rhs) {
-				return lhs == rhs || std::tolower(static_cast<unsigned char>(lhs)) == std::tolower(static_cast<unsigned char>(rhs));
-			};
-			if (input.size() > 2) {
-				if (std::equal(Hex.begin(), Hex.end(), input.begin(), caseInsensitiveComp))
-					return NumericStringType::Hex;
-				else if (std::equal(NegativeHex.begin(), NegativeHex.end(), input.begin(), caseInsensitiveComp))
-					return NumericStringType::NegativeHex;
-			}
-			return NumericStringType::General;
-		}
-
-		template <typename T>
-		bool trySetValue(T val, std::errc errc, bool isPositive) noexcept {
-			if (errc == std::errc{}) {
-				if (val > (std::numeric_limits<ArgType>::max)()) {
-					argRef = (std::numeric_limits<ArgType>::max)();
-				} else if (val < std::numeric_limits<ArgType>::lowest()) {
-					argRef = std::numeric_limits<ArgType>::lowest();
-				} else {
-					argRef = static_cast<ArgType>(val);
-				}
-				return true;
-			} else if (errc == std::errc::result_out_of_range) {
-				argRef = isPositive ? (std::numeric_limits<ArgType>::max)() : std::numeric_limits<ArgType>::lowest();
-				return true;
-			} else if (errc == std::errc::invalid_argument) {
-				// report
-			}
-			return false;
-		}
-
-		bool parseInteger(std::string_view input) noexcept {
-			int base = 10;
-			char buffer[BufferSize];
-			switch (getNumericStringType(input)) {
-				case NumericStringType::General:
-					break;
-				case NumericStringType::Hex:
-					input.remove_prefix(Hex.size());
-					if (input.empty())
-						return false;
-					base = 16;
-					break;
-				case NumericStringType::NegativeHex:
-					input = getNegativeHexView(buffer, input);
-					base = 16;
-					break;
-			}
-
-			std::int64_t val = 0;
-			const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val, base);
-			return trySetValue(val, errc, input[0] == '-');
-		}
-		bool parseUnsignedInteger(std::string_view input) noexcept {
-			int base = 10;
-			switch (getNumericStringType(input)) {
-				case NumericStringType::General:
-					break;
-				case NumericStringType::Hex:
-					input.remove_prefix(Hex.size());
-					if (input.empty())
-						return false;
-					base = 16;
-					break;
-				case NumericStringType::NegativeHex:
-					return false;
-			}
-
-			std::uint64_t val = 0;
-			const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val, base);
-			return trySetValue(val, errc, input[0] == '-');
-		}
-		bool parseFloat(std::string_view input) noexcept {
-			bool isHexFormat = false;
-			char buffer[BufferSize];
-			switch (getNumericStringType(input)) {
-				case NumericStringType::General:
-					break;
-				case NumericStringType::Hex:
-					input.remove_prefix(Hex.size());
-					if (input.empty())
-						return false;
-					isHexFormat = true;
-					break;
-				case NumericStringType::NegativeHex:
-					input = getNegativeHexView(buffer, input);
-					isHexFormat = true;
-					break;
-			}
-
-			ArgType val = 0;
-#ifndef __cpp_lib_to_chars
-			const auto [p, errc] = Detail::fromCharsStringStream(input.data(), input.data() + input.size(), val, isHexFormat);
-#else
-			const auto format = isHexFormat ? std::chars_format::hex : std::chars_format::general;
-			const auto [p, errc] = from_chars(input.data(), input.data() + input.size(), val, format);
-#endif
-			return trySetValue(val, errc, input[0] == '-');
-		}
-
-		bool set(std::string_view input) noexcept final {
-			if (input.empty())
-				return false;
-
-			// In cases where integer arguments would overflow, prefer setting the min/max value instead of failing.
-			if constexpr (!std::is_same_v<ArgType, char> && std::is_integral_v<ArgType>) {
-				if constexpr (std::is_unsigned_v<ArgType>) {
-					return parseUnsignedInteger(input);
-				} else {
-					return parseInteger(input);
-				}
-			} else if constexpr (std::is_floating_point_v<ArgType>) {
-				return parseFloat(input);
-			}
-			else if constexpr (std::is_same_v<ArgType, char>) {
-				if (input.size() != 1)
-					return false;
-				argRef = input[0];
-				return true;
-			}
-		}
-
+		bool set(std::string_view input) noexcept final { return trySetArithmetic(argRef, input); }
 		ArgType& argRef;
 	};
 
 	template <class ArgType>
 	struct StringArg : public Arg {
 		StringArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, ArgType& arg) noexcept
-			: Arg(std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)), stringRef(arg) {}
+			: Arg{std::move(charKey), std::move(wordKey), std::move(desc), std::move(defaultValStr)}, stringRef(arg) {}
+
+		bool set(std::string_view input) noexcept final { return setStringType(stringRef, input); }
+		ArgType& stringRef;
+	};
+
+	template <class ArgType>
+	struct OptionalArg : public Arg {
+		OptionalArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& desc, std::optional<ArgType>& arg) noexcept
+			: Arg{std::move(charKey), std::move(wordKey), std::move(desc)}, optionalRef(arg) {}
 
 		bool set(std::string_view input) noexcept final {
-			stringRef = input;
-			return true;
+			if constexpr (std::is_same_v<ArgType, bool>)
+				return trySetBool(optionalRef, input);
+			else if constexpr (std::is_arithmetic_v<ArgType>)
+				return trySetArithmetic(optionalRef, input);
+			else if constexpr (Detail::is_string_type_v<ArgType>)
+				return setStringType(optionalRef, input);
 		}
-		ArgType& stringRef;
+		std::optional<ArgType>& optionalRef;
 	};
 
 	std::vector<std::unique_ptr<Arg>> args_;
