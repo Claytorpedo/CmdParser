@@ -8,6 +8,7 @@ struct MyOptions { // Make a bundle of options to pass around.
 	int numberOfCakes = 0;
 	float cakeFraction = 1.0f;
 	std::string_view cakeName = "Cakeman";
+	std::optional<int> required;
 };
 
 int main(int argc, const char* argv[]) {
@@ -18,10 +19,21 @@ int main(int argc, const char* argv[]) {
 	cmdParser.push(options.numberOfCakes, 'n', "num-cakes", "The number of cakes.");
 	cmdParser.push(options.cakeFraction, 'f', std::nullopt, "The fraction of cakes.");
 	cmdParser.push(options.cakeName, std::nullopt, "cake-name", "Name your cake.");
+	cmdParser.push(options.required, 'r', "required", "This one is mandatory.");
 
-	if (!cmdParser.parse(argc, argv, [](auto error) { std::cout << "Error parsing: " << error.message() << "\n"; })) {
+	const bool success = cmdParser.parse(argc, argv, [](auto error) { std::cout << "Error parsing: " << error.message() << "\n"; });
+
+	constexpr std::string_view description = "My test program: Demonstrates example usage.";
+
+	if (!success) {
 		// If we get something we don't expect, print help.
-		std::cout << cmdParser.getHelpText("My test program: Demonstrates example usage.");
+		std::cerr << cmdParser.getHelpText(description);
+		return 1;
+	}
+
+	if (!options.required) {
+		std::cerr << "Oops. Need to specify \"--required\".\n";
+		std::cerr << cmdParser.getHelpText(description);
 		return 1;
 	}
 
@@ -32,6 +44,7 @@ int main(int argc, const char* argv[]) {
 	std::cout << "options.numberOfCakes:    " << options.numberOfCakes << "\n";
 	std::cout << "options.cakeFraction:     " << options.cakeFraction << "\n";
 	std::cout << "options.cakeName:         " << options.cakeName << "\n";
+	std::cout << "options.required:         " << *options.required << "\n";
 	std::cout << "\n";
 
 	return 0;

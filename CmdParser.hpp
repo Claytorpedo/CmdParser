@@ -269,6 +269,12 @@ public:
 					helpText += ' ';
 				}
 			}
+
+			if (!arg.wordKey && arg.defaultValStr.empty() && arg.description.empty()) {
+				helpText += '\n';
+				return;
+			}
+
 			// Word argument.
 			{
 				helpText += ' ';
@@ -284,6 +290,12 @@ public:
 					helpText.append(Spacer);
 				}
 			}
+
+			if (arg.defaultValStr.empty() && arg.description.empty()) {
+				helpText += '\n';
+				return;
+			}
+
 			// Default value.
 			if (!arg.defaultValStr.empty()) {
 				constexpr std::string_view DefaultHeader = "[default: ";
@@ -297,6 +309,11 @@ public:
 			} else {
 				constexpr std::string_view Spacer = ".................. ";
 				helpText.append(Spacer);
+			}
+
+			if (arg.description.empty()) {
+				helpText += '\n';
+				return;
 			}
 
 			helpText.append(arg.description);
@@ -382,7 +399,7 @@ private:
 
 	struct FlagArg : public Arg {
 		FlagArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, bool& arg, bool defaultVal) noexcept
-			: Arg{std::move(charKey), std::move(wordKey), std::move(desc), std::move(defaultValStr)}, flagRef(arg), defaultVal(defaultVal) {}
+			: Arg{std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)}, flagRef(arg), defaultVal(defaultVal) {}
 
 		bool set(std::string_view) noexcept override {
 			flagRef = !defaultVal;
@@ -572,7 +589,7 @@ private:
 
 	struct BoolArg : public Arg {
 		BoolArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, bool& arg) noexcept
-			: Arg{std::move(charKey), std::move(wordKey), std::move(desc), std::move(defaultValStr)}, boolRef(arg) {}
+			: Arg{std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)}, boolRef(arg) {}
 
 		bool set(std::string_view input) noexcept final { return trySetBool(boolRef, input); }
 		bool& boolRef;
@@ -581,7 +598,7 @@ private:
 	template <class ArgType>
 	struct NumericArg : public Arg {
 		NumericArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, ArgType& arg) noexcept
-			: Arg{std::move(charKey), std::move(wordKey), std::move(desc), std::move(defaultValStr)}, argRef(arg) {}
+			: Arg{std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)}, argRef(arg) {}
 
 		bool set(std::string_view input) noexcept final { return trySetArithmetic(argRef, input); }
 		ArgType& argRef;
@@ -590,7 +607,7 @@ private:
 	template <class ArgType>
 	struct StringArg : public Arg {
 		StringArg(std::optional<char>&& charKey, std::optional<std::string>&& wordKey, std::string&& defaultValStr, std::string&& desc, ArgType& arg) noexcept
-			: Arg{std::move(charKey), std::move(wordKey), std::move(desc), std::move(defaultValStr)}, stringRef(arg) {}
+			: Arg{std::move(charKey), std::move(wordKey), std::move(defaultValStr), std::move(desc)}, stringRef(arg) {}
 
 		bool set(std::string_view input) noexcept final { return setStringType(stringRef, input); }
 		ArgType& stringRef;
