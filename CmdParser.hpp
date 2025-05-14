@@ -12,12 +12,6 @@
 #include <type_traits>
 #include <vector>
 
-// Both gcc and clang do not supporrt floating point charconv operations yet.
-// Use a stringstream as a workaround for now.
-#ifndef __cpp_lib_to_chars
-#include <sstream>
-#endif
-
 namespace cmd {
 
 struct ignore_unknown_args_policy {};
@@ -34,7 +28,7 @@ enum class ErrorResult {
 	Continue
 };
 
-namespace Detail {
+namespace detail {
 
 template <typename S>
 struct is_string_type : std::disjunction<
@@ -52,23 +46,6 @@ auto MakeError(Args&&... args) {
 	return error;
 }
 
-#ifndef __cpp_lib_to_chars
-template <typename T, typename = std::enable_if_t<std::is_floating_point_v<T>>>
-std::from_chars_result fromCharsStringStream(const char* first, const char* last, T& val, [[maybe_unused]] bool isHexFormat) {
-	// Can't seem to get floating point working properly with gcc, and I doubt I will ever actually need it.
-	std::istringstream stream{std::string(first, last)};
-	const bool success = static_cast<bool>(stream >> val);
-	const auto read = stream.gcount();
-	return {first + read, success ? std::errc{} : std::errc::invalid_argument};
-}
-
-template <typename T>
-std::string toString(const T val) {
-	std::ostringstream stream;
-	stream << val;
-	return std::move(stream).str();
-}
-#else
 template <typename T>
 std::string toString(const T val) {
 	constexpr std::size_t BufferSize = 64;
@@ -77,9 +54,8 @@ std::string toString(const T val) {
 	assert(errc == std::errc{}); // Buffer should be large enough.
 	return {buffer, static_cast<std::size_t>(std::distance(buffer, ptr))};
 }
-#endif // !__cpp_lib_to_chars
 
-} // namespace Detail
+} // namespace detail
 
 class CmdParser {
 public:
@@ -109,11 +85,11 @@ public:
 	template <class ArithmeticType, std::enable_if_t<std::is_arithmetic_v<ArithmeticType> && !std::is_same_v<ArithmeticType, bool>, int> = 0>
 	void push(ArithmeticType& argRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string description = "", bool verifyUnique = true) {
 		checkValid(charKey, wordKey, verifyUnique);
-		args_.emplace_back(std::make_unique<NumericArg<ArithmeticType>>(std::move(charKey), std::move(wordKey), Detail::toString(argRef), std::move(description), argRef));
+		args_.emplace_back(std::make_unique<NumericArg<ArithmeticType>>(std::move(charKey), std::move(wordKey), detail::toString(argRef), std::move(description), argRef));
 	}
 
 	// std::string or std::string_view.
-	template <class StringType, std::enable_if_t<Detail::is_string_type_v<StringType>, int> = 0>
+	template <class StringType, std::enable_if_t<detail::is_string_type_v<StringType>, int> = 0>
 	void push(StringType& stringRef, std::optional<char> charKey, std::optional<std::string> wordKey = std::nullopt, std::string description = "", bool verifyUnique = true) {
 		checkValid(charKey, wordKey, verifyUnique);
 		std::string defaultValStr;
@@ -157,7 +133,7 @@ public:
 		// Returns true if parsing should continue.
 		const auto reportErrorAndContinue = [&success, &errorHandler] (auto&&... args) {
 			success = false;
-			auto error = Detail::MakeError(std::forward<decltype(args)>(args)...);
+			auto error = detail::MakeError(std::forward<decltype(args)>(args)...);
 			if constexpr (std::is_invocable_r_v<void, ErrorHandler, Error>) {
 				errorHandler(std::move(error));
 				return true; // Continue by default.
@@ -544,12 +520,8 @@ private:
 		}
 
 		ref_type_t<RefType> val = 0;
-#ifndef __cpp_lib_to_chars
-		const auto [p, errc] = Detail::fromCharsStringStream(input.data(), input.data() + input.size(), val, isHexFormat);
-#else
 		const auto format = isHexFormat ? std::chars_format::hex : std::chars_format::general;
 		const auto [p, errc] = from_chars(input.data(), input.data() + input.size(), val, format);
-#endif
 		return trySetArithmeticResult(ref, val, errc, input[0] == '-');
 	}
 
@@ -623,7 +595,7 @@ private:
 				return trySetBool(optionalRef, input);
 			else if constexpr (std::is_arithmetic_v<ArgType>)
 				return trySetArithmetic(optionalRef, input);
-			else if constexpr (Detail::is_string_type_v<ArgType>)
+			else if constexpr (detail::is_string_type_v<ArgType>)
 				return setStringType(optionalRef, input);
 		}
 		std::optional<ArgType>& optionalRef;
