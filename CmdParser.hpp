@@ -476,7 +476,7 @@ private:
 
 		std::int64_t val = 0;
 		const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val, base);
-		return trySetArithmeticResult(ref, val, errc, input[0] == '-');
+		return trySetArithmeticResult(ref, val, errc, input[0] != '-');
 	}
 
 	template <typename RefType>
@@ -497,7 +497,7 @@ private:
 
 		std::uint64_t val = 0;
 		const auto [p, errc] = std::from_chars(input.data(), input.data() + input.size(), val, base);
-		return trySetArithmeticResult(ref, val, errc, input[0] == '-');
+		return trySetArithmeticResult(ref, val, errc, input[0] != '-');
 	}
 
 	template <typename RefType>
@@ -522,7 +522,7 @@ private:
 		ref_type_t<RefType> val = 0;
 		const auto format = isHexFormat ? std::chars_format::hex : std::chars_format::general;
 		const auto [p, errc] = from_chars(input.data(), input.data() + input.size(), val, format);
-		return trySetArithmeticResult(ref, val, errc, input[0] == '-');
+		return trySetArithmeticResult(ref, val, errc, input[0] != '-');
 	}
 
 	template <typename RefType>
